@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- 캐시 자기치유(1회성): 예전에 등록된 서비스워커/캐시가 옛 빌드를 붙잡고 있으면 떼어낸다.
+     이 페이지 자체는 서버가 no-store 로 내려주므로 항상 최신이다.
+     ⚠️ 정식 서비스워커/PWA 를 도입하면 이 블록을 반드시 제거할 것(아니면 SW 가 매번 지워짐). -->
+<script>
+(function () {
+  try {
+    if (localStorage.getItem("sdt_heal_v3")) return;   // 1회만 실행
+    localStorage.setItem("sdt_heal_v3", "1");
+    if (window.caches && caches.keys) {
+      caches.keys()
+        .then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); })
+        .catch(function () {});
+    }
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations()
+        .then(function (rs) { rs.forEach(function (r) { r.unregister(); }); })
+        .catch(function () {});
+    }
+  } catch (e) { /* 무시 — 캐시 정리는 베스트에포트 */ }
+})();
+</script>
+<title>중고타운 — 사기꾼은 누구?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+<!-- ?v= 는 캐시 무효화용. 정적 파일을 고칠 때마다 숫자를 올리면 브라우저가 새로 받는다. -->
+<link rel="stylesheet" href="/static/css/style.css?v=7" />
+</head>
+<body>
+
+<!-- ================= 로그인 / 회원가입 ================= -->
+<section id="auth-screen" class="screen active">
+  <div class="auth-bg"></div>
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="auth-logo">🏘️</div>
+      <h1>중고타운</h1>
+      <p class="auth-tagline">사기꾼은 누구? — 중고거래 사기 방어 시뮬레이터</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">로그인</button>
+      <button class="auth-tab" data-tab="register">회원가입</button>
+    </div>
+
+    <!-- 로그인 -->
+    <form id="login-form" class="auth-form active">
+      <label>아이디
+        <input type="text" name="username" autocomplete="username" required />
+      </label>
+      <label>비밀번호
+        <input type="password" name="password" autocomplete="current-password" required />
+      </label>
+      <button type="submit" class="btn-primary">마을로 들어가기</button>
+      <p class="auth-msg" id="login-msg"></p>
+    </form>
+
+    <!-- 회원가입 -->
+    <form id="register-form" class="auth-form">
+      <label>아이디 <span class="hint">영문/숫자 3~20자</span>
+        <input type="text" name="username" pattern="[A-Za-z0-9_]{3,20}" required />
+      </label>
+      <label>닉네임 <span class="hint">마을에서 보일 이름</span>
+        <input type="text" name="display_name" maxlength="20" required />
+      </label>
+      <label>이메일 <span class="hint">선택</span>
+        <input type="email" name="email" maxlength="120" />
+      </label>
+      <label>비밀번호 <span class="hint">6자 이상</span>
+        <input type="password" name="password" minlength="6" autocomplete="new-password" required />
+      </label>
+      <button type="submit" class="btn-primary">계정 만들고 시작하기</button>
+      <p class="auth-msg" id="register-msg"></p>
+    </form>
+  </div>
+</section>
+
+<!-- ================= 역할 / 아바타 설정 ================= -->
+<section id="setup-screen" class="screen">
+  <div class="setup-bg"></div>
+  <div class="setup-card">
+    <h1>캐릭터 설정</h1>
+    <p class="setup-tag">마을에 들어가기 전에, 역할과 아바타를 정해요.</p>
+
+    <div class="setup-block">
+      <h3>역할 선택</h3>
+      <div class="role-choices">
+        <button type="button" class="role-btn active" data-role="buyer">
+          🛒 구매자 <small>사기 판매자를 가려내요</small>
+        </button>
+        <button type="button" class="role-btn" data-role="seller">
+          🏪 판매자 <small>진상·위험 구매자에 대응해요</small>
+        </button>
+      </div>
+    </div>
+
+    <div class="setup-block" id="category-block" style="display:none">
+      <h3>판매 카테고리</h3>
+      <div class="cat-choices" id="cat-choices"></div>
+    </div>
+
+    <div class="setup-block setup-avatar">
+      <div class="avatar-preview">
+        <canvas id="avatar-canvas" width="120" height="150"></canvas>
+      </div>
+      <div class="avatar-controls" id="avatar-controls"></div>
+    </div>
+
+    <label class="setup-geo">
+      <input type="checkbox" id="geo-optin" />
+      더 정확한 내 동네로 맞추기 (선택) — 안 켜도 접속 위치(IP)로 동네가 자동 설정돼요
+    </label>
+
+    <button class="btn-primary" id="setup-save">이 모습으로 마을 입장</button>
+    <p class="setup-msg" id="setup-msg"></p>
+  </div>
+</section>
+
+<!-- ================= 게임 화면 ================= -->
+<section id="game-screen" class="screen">
+  <!-- 상단 HUD -->
+  <header id="hud">
+    <div class="hud-left">
+      <span class="hud-logo">🏘️ 중고타운</span>
+      <span class="hud-role buyer" id="hud-role">🛒 구매자 모드</span>
+    </div>
+    <div class="hud-center">
+      <div class="hud-stat"><span class="hud-label">Lv</span><span id="hud-level">1</span></div>
+      <div class="hud-stat hud-xp">
+        <span class="hud-label">XP</span>
+        <div class="xp-bar"><div class="xp-fill" id="hud-xp-fill"></div></div>
+        <span id="hud-xp-text">0</span>
+      </div>
+      <div class="hud-stat"><span class="hud-label">신뢰도</span><span id="hud-trust">50</span></div>
+      <div class="hud-stat" title="코인"><span class="hud-label">💰</span><span id="hud-coins">0</span></div>
+      <div class="hud-stat" title="모은 아이템"><span class="hud-label">📦</span><span id="hud-items">0</span></div>
+    </div>
+    <div class="hud-right">
+      <button class="hud-btn" id="btn-role" title="구매자/판매자 모드 전환">🔄 역할 전환</button>
+      <button class="hud-btn" id="btn-record">📒 전적실</button>
+      <button class="hud-btn" id="btn-help">❔ 도움말</button>
+      <button class="hud-btn" id="btn-logout">나가기</button>
+    </div>
+  </header>
+
+  <!-- 게임 캔버스 -->
+  <div id="stage">
+    <canvas id="game-canvas" width="960" height="640"></canvas>
+    <div id="town-name" class="hidden">🏘️ <span id="town-name-text"></span></div>
+    <div id="build-badge" title="실행 중인 클라이언트 빌드">build v7</div>
+    <div id="interact-hint" class="hidden">
+      <span class="key">E</span> 또는 <span class="key">Space</span> — 대화하기
+    </div>
+    <div id="objective-banner">
+      🎯 마을을 돌아다니며 판매자와 대화해 보세요. 누가 <b>사기꾼</b>이고 누가 <b>정상 판매자</b>일까요?
+    </div>
+  </div>
+</section>
+
+<!-- ================= 채팅 오버레이 ================= -->
+<div id="chat-overlay" class="overlay hidden">
+  <div class="chat-window">
+    <header class="chat-header">
+      <div class="chat-npc">
+        <div class="chat-avatar" id="chat-avatar"></div>
+        <div class="chat-npc-info">
+          <h3 id="chat-npc-name">판매자</h3>
+          <p id="chat-npc-desc"></p>
+        </div>
+      </div>
+      <button class="chat-close" id="chat-close" title="대화 접기">✕</button>
+    </header>
+
+    <div class="listing-card" id="listing-card">
+      <div class="listing-row">
+        <span class="listing-item" id="listing-item"></span>
+        <span class="listing-price" id="listing-price"></span>
+      </div>
+      <div class="listing-meta">
+        <span id="listing-market"></span>
+        <span id="listing-location"></span>
+      </div>
+    </div>
+
+    <div class="chat-body" id="chat-body"></div>
+
+    <div class="chat-footer">
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" maxlength="400"
+               placeholder="판매자에게 메시지 보내기..." autocomplete="off" />
+        <button id="chat-send" class="btn-send">보내기</button>
+      </div>
+      <div class="chat-turn-info">
+        <span id="chat-turn-text">대화 0 / 14</span>
+        <span class="chat-tip">💡 의심스러운 메시지는 🚩 를 눌러 표시하세요</span>
+      </div>
+      <div class="decision-row">
+        <p class="decision-label">거래를 마칠 준비가 됐다면 선택하세요</p>
+        <!-- 구매자 모드 결정 -->
+        <div class="decision-btns" id="buyer-decisions">
+          <button class="btn-decision btn-buy" data-decision="buy">✅ 안전하게 구매</button>
+          <button class="btn-decision btn-walk" data-decision="walk_away">🚶 거래 중단</button>
+          <button class="btn-decision btn-report" data-decision="report">🚨 신고하기</button>
+        </div>
+        <!-- 판매자 모드 결정 -->
+        <div class="decision-btns decision-seller" id="seller-decisions" style="display:none">
+          <button class="btn-decision btn-buy" data-decision="complete_sale">✅ 판매 완료</button>
+          <button class="btn-decision btn-walk" data-decision="refuse_refund">🛑 환불 거절</button>
+          <button class="btn-decision btn-partial" data-decision="partial_refund">↩️ 부분 환불</button>
+          <button class="btn-decision btn-accept" data-decision="accept_refund">💸 환불 수락</button>
+          <button class="btn-decision btn-escalate" data-decision="escalate_platform">🧾 플랫폼 분쟁</button>
+          <button class="btn-decision btn-report" data-decision="cancel_trade">✖️ 거래 취소</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 결과 모달 ================= -->
+<div id="result-overlay" class="overlay hidden">
+  <div class="result-window">
+    <div class="result-banner" id="result-banner">
+      <div class="result-emoji" id="result-emoji">🎯</div>
+      <h2 id="result-title">결과</h2>
+      <p id="result-subtitle"></p>
+    </div>
+
+    <div class="result-score-row">
+      <div class="result-score">
+        <span class="score-num" id="result-score">0</span>
+        <span class="score-label">점</span>
+      </div>
+      <div class="result-rewards" id="result-rewards"></div>
+    </div>
+
+    <div class="result-section">
+      <h4>🧑‍🏫 코치 한마디</h4>
+      <p class="coaching-text" id="result-coaching"></p>
+    </div>
+
+    <div class="result-section" id="flags-section">
+      <h4>🔍 위험 신호 복기</h4>
+      <div id="result-flags"></div>
+    </div>
+
+    <div class="result-section">
+      <h4>💬 대화 다시 보기 <span class="hint">— 상대가 쓴 수법/행동이 표시됩니다</span></h4>
+      <div class="transcript-review" id="result-transcript"></div>
+    </div>
+
+    <p id="result-disclaimer" class="result-disclaimer hidden"></p>
+
+    <button class="btn-primary" id="result-close">마을로 돌아가기</button>
+  </div>
+</div>
+
+<!-- ================= 전적실 모달 ================= -->
+<div id="record-overlay" class="overlay hidden">
+  <div class="record-window">
+    <header class="record-header">
+      <h2>📒 전적실</h2>
+      <button class="chat-close" id="record-close">✕</button>
+    </header>
+    <div class="record-stats" id="record-stats"></div>
+    <h4 class="record-subtitle">🏆 명예의 전당</h4>
+    <div class="record-leaderboard" id="record-leaderboard"></div>
+    <h4 class="record-subtitle">📜 최근 거래</h4>
+    <div class="record-history" id="record-history"></div>
+  </div>
+</div>
+
+<!-- ================= 도움말 모달 ================= -->
+<div id="help-overlay" class="overlay hidden">
+  <div class="help-window">
+    <header class="record-header">
+      <h2>❔ 어떻게 하는 게임인가요?</h2>
+      <button class="chat-close" id="help-close">✕</button>
+    </header>
+    <div class="help-body">
+      <div class="help-step"><span class="help-num">1</span>
+        <p><b>방향키</b> 또는 <b>WASD</b> 로 마을을 돌아다녀요.</p></div>
+      <div class="help-step"><span class="help-num">2</span>
+        <p>판매자 가까이 가서 <b>E</b> 또는 <b>스페이스</b> 를 누르면 대화가 시작돼요.</p></div>
+      <div class="help-step"><span class="help-num">3</span>
+        <p>판매자에게 자유롭게 질문하세요. 사진 요청, 직거래 제안, 가격 흥정 — 뭐든 좋아요.
+           판매자는 진짜 AI라서 매번 다르게 반응합니다.</p></div>
+      <div class="help-step"><span class="help-num">4</span>
+        <p>수상한 메시지에는 <b>🚩</b> 를 눌러 의심 표시를 해두세요.</p></div>
+      <div class="help-step"><span class="help-num">5</span>
+        <p>판단이 섰다면 <b>구매 / 거래 중단 / 신고</b> 중 하나를 골라 거래를 마칩니다.</p></div>
+      <div class="help-step"><span class="help-num">6</span>
+        <p>코치 AI가 채점하고 복기를 도와줘요. 사기꾼은 <b>중단·신고</b>, 정상 판매자는
+           <b>구매</b> 가 정답입니다. 단, 싸거나 불친절하다고 다 사기는 아니에요!</p></div>
+      <div class="help-step"><span class="help-num">🏪</span>
+        <p><b>판매자 모드</b>에서는 반대로, 찾아오는 구매자 중 <b>환불 빌런·막깎이·위험거래 유도</b> 같은
+           진상에 침착하게 대응합니다. 욕설·협박 없이 <b>상태 고지·대화 기록·플랫폼 분쟁</b> 같은
+           안전한 근거로 풀어내면 높은 점수를 받아요. (결과는 훈련용 일반 정보이며 법률 자문이 아닙니다.)</p></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/js/api.js?v=7"></script>
+<script src="/static/js/auth.js?v=7"></script>
+<script src="/static/js/avatar.js?v=7"></script>
+<script src="/static/js/sprites.js?v=7"></script>
+<script src="/static/js/world_map.js?v=7"></script>
+<script src="/static/js/spawn_manager.js?v=7"></script>
+<script src="/static/js/game.js?v=7"></script>
+<script src="/static/js/setup.js?v=7"></script>
+<script src="/static/js/chat.js?v=7"></script>
+<script src="/static/js/main.js?v=7"></script>
+</body>
+</html>

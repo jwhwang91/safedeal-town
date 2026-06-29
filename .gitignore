@@ -1,0 +1,27 @@
+# 비밀/환경설정 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+
+# 런타임 DB / 데이터
+runtime/*.sqlite3
+runtime/*.sqlite3-*
+*.sqlite3
+*.db
+
+# 파이썬
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 코드 덤프/임시
+project_code_dump.txt
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
