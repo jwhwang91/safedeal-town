@@ -40,6 +40,8 @@ def run_migrations(conn: sqlite3.Connection) -> None:
         "setup_completed INTEGER NOT NULL DEFAULT 0",
     )
     # ---- 재화 시스템: 코인 + 모은 아이템(거래로 얻고, 사기/과환불로 잃는다) ----
+    # 신규 설치는 schema.sql 의 users 정의에 이미 포함됨. 여기 둔 건 그 전에 만들어진
+    # 기존 DB 를 보강하기 위함 (멱등 — 이미 있으면 건너뜀). 두 정의는 동일하게 유지할 것.
     _add_column_if_missing(conn, "users", "coins", "coins INTEGER NOT NULL DEFAULT 100")
     _add_column_if_missing(conn, "users", "inventory_json", "inventory_json TEXT")
 

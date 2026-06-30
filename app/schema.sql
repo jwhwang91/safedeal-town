@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS users (
     level                 INTEGER NOT NULL DEFAULT 1,
     xp                    INTEGER NOT NULL DEFAULT 0,
     trust_score           INTEGER NOT NULL DEFAULT 50,  -- 0~100, 사기 당하면 깎임
+    coins                 INTEGER NOT NULL DEFAULT 100, -- 재화: 정상거래로 벌고, 사기/과환불로 잃음
+    inventory_json        TEXT,                         -- 모은 아이템(JSON 배열). 사기/과환불 시 최근 아이템 상실
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
     locked_until          TEXT,                   -- 로그인 5회 실패 시 잠금 해제 시각
     game_role             TEXT,                   -- 'buyer' | 'seller' (셋업 전 NULL)
