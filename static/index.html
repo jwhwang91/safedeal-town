@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
 <!-- ?v= 는 캐시 무효화용. 정적 파일을 고칠 때마다 숫자를 올리면 브라우저가 새로 받는다. -->
-<link rel="stylesheet" href="/static/css/style.css?v=9" />
+<link rel="stylesheet" href="/static/css/style.css?v=10" />
 </head>
 <body>
 
@@ -133,6 +133,10 @@
     <div class="hud-left">
       <span class="hud-logo">🏘️ 중고타운</span>
       <span class="hud-role buyer" id="hud-role">🛒 구매자 모드</span>
+      <span class="hud-market hidden" id="hud-market" title="마켓 설정">
+        <span class="hud-market-text" id="hud-market-text"></span>
+        <button class="hud-market-edit" id="btn-market-edit" type="button">검색 변경</button>
+      </span>
     </div>
     <div class="hud-center">
       <div class="hud-stat"><span class="hud-label">Lv</span><span id="hud-level">1</span></div>
@@ -158,10 +162,11 @@
   <div id="stage">
     <canvas id="game-canvas" width="960" height="640"></canvas>
     <div id="town-name" class="hidden">🏘️ <span id="town-name-text"></span></div>
-    <div id="build-badge" title="실행 중인 클라이언트 빌드">build v9</div>
+    <div id="build-badge" title="실행 중인 클라이언트 빌드">build v10</div>
     <div id="interact-hint" class="hidden">
       <span class="key">E</span> 또는 <span class="key">Space</span> — 대화하기
     </div>
+    <div id="inquiry-alert" class="hidden" title="대기 중인 구매자 문의로 이동"></div>
     <div id="objective-banner">
       🎯 마을을 돌아다니며 판매자와 대화해 보세요. 누가 <b>사기꾼</b>이고 누가 <b>정상 판매자</b>일까요?
     </div>
@@ -180,6 +185,7 @@
       <button class="chat-close" id="card-close" title="닫기">✕</button>
     </header>
     <div class="card-profile" id="card-profile"></div>
+    <div class="card-inquiry hidden" id="card-inquiry"></div>
     <div class="card-listing" id="card-listing"></div>
     <div class="card-actions">
       <button class="btn-walk-card" id="card-cancel">둘러보기</button>
@@ -405,18 +411,18 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/static/js/api.js?v=9"></script>
-<script src="/static/js/auth.js?v=9"></script>
-<script src="/static/js/avatar.js?v=9"></script>
-<script src="/static/js/sprites.js?v=9"></script>
-<script src="/static/js/world_map.js?v=9"></script>
-<script src="/static/js/spawn_manager.js?v=9"></script>
-<script src="/static/js/game.js?v=9"></script>
-<script src="/static/js/listing_setup.js?v=9"></script>
-<script src="/static/js/setup.js?v=9"></script>
-<script src="/static/js/checklist.js?v=9"></script>
-<script src="/static/js/chat.js?v=9"></script>
-<script src="/static/js/inventory.js?v=9"></script>
-<script src="/static/js/main.js?v=9"></script>
+<script src="/static/js/api.js?v=10"></script>
+<script src="/static/js/auth.js?v=10"></script>
+<script src="/static/js/avatar.js?v=10"></script>
+<script src="/static/js/sprites.js?v=10"></script>
+<script src="/static/js/world_map.js?v=10"></script>
+<script src="/static/js/spawn_manager.js?v=10"></script>
+<script src="/static/js/game.js?v=10"></script>
+<script src="/static/js/listing_setup.js?v=10"></script>
+<script src="/static/js/setup.js?v=10"></script>
+<script src="/static/js/checklist.js?v=10"></script>
+<script src="/static/js/chat.js?v=10"></script>
+<script src="/static/js/inventory.js?v=10"></script>
+<script src="/static/js/main.js?v=10"></script>
 </body>
 </html>

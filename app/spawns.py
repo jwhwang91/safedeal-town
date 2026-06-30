@@ -34,6 +34,44 @@ def _buyer_theme_for(spawn_id: str) -> str:
     return _BUYER_DISPLAY_THEMES[h % len(_BUYER_DISPLAY_THEMES)]
 
 
+def _approach_params(spawn_id: str) -> tuple[float, int | None]:
+    """판매자 모드 구매자 NPC 의 결정적 (관심도, 접근 지연초).
+
+    역할(정상/빌런 등)과 '무관'하다 — 스폰 id 해시로만 정해서 정체가 새지 않게 한다.
+    일부 구매자는 접근하지 않고(=None) 잠깐 둘러보다 사라진다 → 한꺼번에 몰리지 않음.
+    """
+    h = sum((i + 1) * ord(c) for i, c in enumerate(spawn_id)) if spawn_id else 0
+    interest = round(0.35 + (h % 61) / 100.0, 2)  # 0.35 ~ 0.95
+    bucket = (h // 7) % 100
+    if bucket < 35:
+        delay: int | None = 4 + (h % 7)       # 곧 다가옴 (4~10초)
+    elif bucket < 70:
+        delay = 22 + (h % 26)                 # 잠시 후 (22~47초)
+    else:
+        delay = None                          # 이번엔 둘러보기만 (접근 안 함)
+    return interest, delay
+
+
+def _augment_buyer_approach(pub: dict, ctx: dict) -> dict:
+    """판매자 모드 구매자 NPC 스폰에 '접근 행동' 메타를 붙인다 (역할 비노출).
+
+    프론트가 이 값으로 roaming→interested→approaching→waiting 을 연출한다.
+    inquiry_preview 는 플레이어 매물명을 가리키되 구매자 유형은 절대 드러내지 않는 중립 문구.
+    """
+    from app.ai import persona_factory
+
+    sid = pub["spawn_instance_id"]
+    interest, delay = _approach_params(sid)
+    pub["target"] = "player"
+    pub["interest_level"] = interest
+    pub["approach_delay_seconds"] = delay
+    pub["approach_state"] = "roaming"
+    pub["inquiry_preview"] = persona_factory.neutral_inquiry_preview(
+        ctx.get("seller_item"), sid
+    )
+    return pub
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -69,8 +107,10 @@ def _dynamic_of(row: sqlite3.Row) -> dict | None:
         return None
 
 
-def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> dict | None:
+def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime,
+                  ctx: dict | None = None) -> dict | None:
     """active_spawns 의 공개 가능한 필드만 추린다 (동적 NPC 우선, 없으면 npcs 테이블)."""
+    ctx = ctx or {}
     remaining = max(0, int((_parse(row["expires_at"]) - now).total_seconds()))
 
     # 동적 NPC 가 있으면 그걸로 공개 카드를 만든다 (정답지는 절대 미포함).
@@ -82,7 +122,7 @@ def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> 
             visual_theme = _buyer_theme_for(row["id"])
         else:
             visual_theme = dyn.get("visual_theme") or "general_booth"
-        return {
+        pub = {
             "spawn_instance_id": row["id"],
             "npc_kind": npc_kind,
             "name": dyn.get("name"),
@@ -97,6 +137,9 @@ def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> 
             "y": row["y"],
             "remaining_seconds": remaining,
         }
+        if npc_kind == "buyer":
+            pub = _augment_buyer_approach(pub, ctx)
+        return pub
 
     # 폴백: 정적 npcs 테이블 (동적 생성이 꺼졌거나 실패한 경우)
     npc = conn.execute(
@@ -122,7 +165,7 @@ def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> 
     src = npc_by_id(row["npc_id"])
     tagline = (src.get("tagline") if src else None) or npc["item_name"]
 
-    return {
+    pub = {
         "spawn_instance_id": row["id"],
         "npc_kind": npc["npc_kind"],
         "name": npc["name"],
@@ -137,6 +180,29 @@ def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> 
         "y": row["y"],
         "remaining_seconds": remaining,
     }
+
+    # 구매자 모드 카테고리 강제: 동적 생성이 실패해 정적 판매자로 폴백했을 때
+    # 사용자가 고른 카테고리와 다른 물건이 보이지 않도록, 공개 표시를 그 카테고리의
+    # 합성 매물로 바꿔준다. ('random'/미지정이면 그대로 둔다 — 전 카테고리 허용.)
+    want = (ctx.get("buyer_category") or "random")
+    if npc["npc_kind"] == "seller" and want not in (None, "", "random"):
+        from app.market import catalog
+        want_canon = catalog.canonical_of(want)
+        if (npc["category"] or "general") != want_canon and want in catalog.PRODUCTS:
+            try:
+                listing = catalog.generate_listing(want)
+                pub["item_name"] = listing["item_name"]
+                pub["item_category"] = listing["category_label"]
+                pub["category"] = listing["canonical_category"]
+                pub["visual_theme"] = listing["visual_theme"]
+                pub["listing_price"] = listing["listing_price"]
+                pub["tagline"] = listing["listing_title"]
+            except Exception:
+                pass  # 합성 실패해도 게임은 계속 (정적 표시 유지)
+
+    if npc["npc_kind"] == "buyer":
+        pub = _augment_buyer_approach(pub, ctx)
+    return pub
 
 
 def _expire_old(conn: sqlite3.Connection, user_id: int, now: datetime) -> None:
@@ -273,14 +339,35 @@ def _make_dynamic_json(npc_id, game_role, ctx, rnd) -> str | None:
         return None
 
 
+def _public_context(conn: sqlite3.Connection, user: sqlite3.Row) -> dict:
+    """공개 스폰 페이로드 가공에 필요한 사용자 맥락(선호/판매글)을 한 번만 모은다.
+
+    - buyer_category: 구매자 모드 카테고리 강제용
+    - seller_item:    판매자 모드 구매자 NPC 의 중립 문의 미리보기에 쓸 '내 매물명'
+    """
+    game_role = user["game_role"] or "buyer"
+    try:
+        from app import preferences as prefs_mgr
+        prefs = prefs_mgr.get_preferences(conn, user["id"])
+    except Exception:
+        prefs = {}
+    seller_listing = prefs.get("seller_listing") or {}
+    return {
+        "game_role": game_role,
+        "buyer_category": prefs.get("buyer_category", "random"),
+        "seller_item": seller_listing.get("product_name") or seller_listing.get("item_name"),
+    }
+
+
 def refresh_and_list(conn: sqlite3.Connection, user: sqlite3.Row, profile: dict) -> list[dict]:
     """만료 정리 + 부족분 채우기 → 현재 활성 스폰 공개 목록."""
     now = _now()
     _expire_old(conn, user["id"], now)
     _fill(conn, user, profile, now)
+    ctx = _public_context(conn, user)
     out = []
     for row in _active_rows(conn, user["id"]):
-        pub = _public_spawn(conn, row, now)
+        pub = _public_spawn(conn, row, now, ctx)
         if pub:
             out.append(pub)
     return out

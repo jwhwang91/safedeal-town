@@ -82,6 +82,42 @@ _BUYER_TAGLINES = [
     "이 물건 보고 왔어요", "이거 아직 있나요?",
 ]
 
+# 판매자 모드 '구매 문의 미리보기'(말풍선/카드). 플레이어 매물명을 가리키되
+# 구매자의 숨은 유형(정상/빌런/막깎이…)은 절대 드러내지 않는 중립 템플릿이다.
+_NEUTRAL_INQUIRIES = [
+    "{item} 아직 판매 중인가요?",
+    "{item} 상태 좀 더 볼 수 있을까요?",
+    "{item} 가격 조정 되나요?",
+    "{item} 직거래 가능한가요?",
+    "{item} 보고 문의드려요!",
+]
+_NEUTRAL_INQUIRIES_GENERIC = [
+    "이거 아직 판매 중인가요?",
+    "상태 좀 볼 수 있을까요?",
+    "가격 조정 되나요?",
+    "이거 아직 있나요?",
+]
+
+
+def _short_item(item: str | None) -> str:
+    s = str(item or "").strip()
+    if not s or s in ("내 매물 문의", "내 매물", "올리신 매물"):
+        return ""
+    return s if len(s) <= 16 else s[:16] + "…"
+
+
+def neutral_inquiry_preview(item: str | None, seed: str | None = None) -> str:
+    """판매자 모드 구매자 NPC 의 '첫 문의' 미리보기(중립·상품인지). 유형 비노출.
+
+    seed(스폰 id 등)로 결정적으로 한 줄을 고른다 → 폴링마다 안 흔들린다.
+    """
+    h = sum(ord(c) for c in str(seed or item or "x"))
+    short = _short_item(item)
+    if short:
+        tmpl = _NEUTRAL_INQUIRIES[h % len(_NEUTRAL_INQUIRIES)]
+        return tmpl.format(item=short)
+    return _NEUTRAL_INQUIRIES_GENERIC[h % len(_NEUTRAL_INQUIRIES_GENERIC)]
+
 # 구매자(판매자 모드) role → 표시 라벨/오프닝 템플릿 ({item} 치환)
 _BUYER_OPENINGS = {
     "honest_buyer": "안녕하세요! 올리신 {item} 아직 거래 가능할까요? 상태가 궁금해서요.",
@@ -154,6 +190,54 @@ def build_mock_lines_for_listing(persona: dict, listing: dict, role: str,
         "disclose": defect_line,
         "fallback": "필요하신 거 있으면 말씀하세요. 정상적으로 거래하면 됩니다.",
     }
+
+
+def build_mock_lines_for_buyer(listing: dict | None, role: str) -> dict:
+    """판매자 모드 구매자 NPC 의 mock 대사 — '플레이어가 올린 실제 매물'을 언급한다.
+
+    제공자(openai/local_claude) 없거나 실패 시 폴백. 정답지 — 서버 전용.
+    BUYER_BEHAVIORS 전 키 + agree/normal_inquiry/fallback 을 채워, 앵커 플레이북이
+    무엇이든 대응되게 한다. (위험 행동도 '실행적 사기 절차/링크/계좌' 없이 추상적으로만.)
+    """
+    listing = listing or {}
+    raw_item = listing.get("product_name") or listing.get("item_name") or "이 물건"
+    item = raw_item if raw_item not in ("내 매물 문의", "내 매물") else "이 물건"
+    defects = listing.get("disclosed_defects") or []
+    defect = defects[0] if defects else None
+    cond = listing.get("condition_label") or ""
+
+    ignore = (
+        f"{defect} 있다는 얘기 저는 들은 적 없어요. 멀쩡한 줄 알고 샀다고요."
+        if defect else
+        f"{item} 상태 안내 못 받았어요. 멀쩡한 줄 알고 샀다고요."
+    )
+    polite_fallback = "친절히 답해주셔서 감사해요. 합리적인 선에서 거래되면 좋겠습니다."
+    pushy_fallback = "하여튼 저는 이대론 못 넘어가요."
+
+    lines = {
+        "normal_inquiry": f"{item} 아직 거래 가능할까요? 실사용 기간이랑 구성품 좀 알려주세요.",
+        "legit_defect_claim": (
+            f"트집 잡으려는 건 아니고요, 받은 {item}에 설명에 없던 하자가 있어서요. "
+            "부분환불이나 반품 중에 가능한 게 있을까요?"
+        ),
+        "ignore_disclosure": ignore,
+        "unreasonable_refund": f"{item} 쓰던 거든 마음에 안 들면 환불이 맞죠. 당장 전액 보내주세요.",
+        "self_inflicted_damage": f"받자마자 {item}가 망가졌어요. 처음부터 불량이었던 거 아니에요?",
+        "review_threat": "환불 안 해주시면 별점 1점에 후기로 다 박제할 거예요.",
+        "report_threat": "이거 사기 아니에요? 경찰에 신고하고 고소도 할 거니까 그렇게 아세요.",
+        "guilt_trip": "제가 형편이 좀 그래서요.. 좋은 일 한다 치고 싸게 넘겨주시면 안 될까요?",
+        "excessive_lowball": f"{item} 딱 반값에 주시면 안 돼요? 지금 바로 갈게요.",
+        "off_platform_pay": "안전결제는 수수료 아깝잖아요. 그냥 계좌로 바로 보낼게요!",
+        "risky_pickup": "직거래면 오늘 밤 늦게 골목 안쪽에서 봐요. 친구가 대신 받으러 갈게요.",
+        "ghosting": f"{item} 음.. 좀 더 생각해볼게요. 근데 위치가 어디라구요?",
+        "agree": f"네, 설명 들으니 믿음이 가네요. 그 가격에 안전결제로 진행할게요!",
+        "fallback": polite_fallback if role in ("honest_buyer", "legit_claim_buyer") else pushy_fallback,
+    }
+    if cond:
+        lines["normal_inquiry"] = (
+            f"{item}({cond}) 아직 거래 가능할까요? 실사용 기간이랑 구성품 좀 알려주세요."
+        )
+    return lines
 
 
 # ============================================================
@@ -282,7 +366,7 @@ def generate_buyer_npc_for_seller_mode(
     base_persona["appearance"] = appearance
     base_persona["opening_line"] = _BUYER_OPENINGS.get(role, "{item} 문의드려요!").format(item=item)
 
-    npc = dict(anchor)  # role/tactics/mock_lines/difficulty 유지
+    npc = dict(anchor)  # role/tactics/difficulty 유지
     npc.update({
         "id": anchor["id"],
         "anchor_id": anchor["id"],
@@ -293,6 +377,8 @@ def generate_buyer_npc_for_seller_mode(
         # 외형 색/말풍선은 역할과 무관하게 (정체 추리가 깨지지 않도록).
         "sprite_color": rng.choice(_SPRITE_COLORS),
         "tagline": rng.choice(_BUYER_TAGLINES),
+        # mock 대사를 '플레이어가 올린 실제 매물' 기준으로 다시 입힌다 (앵커 고정 대사 대신).
+        "mock_lines": build_mock_lines_for_buyer(user_listing, role),
         # 판매자 모드에선 다뤄지는 물건이 '플레이어의 매물'이다. 표시는 라벨로.
         "item_name": "내 매물 문의",
     })
@@ -400,6 +486,8 @@ __all__ = [
     "generate_seller_npc_for_buyer_mode",
     "generate_buyer_npc_for_seller_mode",
     "build_mock_lines_for_listing",
+    "build_mock_lines_for_buyer",
+    "neutral_inquiry_preview",
     "public_npc_payload",
     "build_profile_card",
 ]

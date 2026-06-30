@@ -121,14 +121,23 @@ def _llm_variant(base_persona: dict, listing: dict | None, selected_patterns: li
     if active_provider() == "mock":
         return None  # 제공자 없음 → template 폴백
     labels = ", ".join(p.get("label", "") for p in (selected_patterns or []))
+    # 매물 맥락(상품/카테고리)을 한 줄 곁들여, 변주가 '이 거래 품목' 안에서 자연스럽게.
+    listing = listing or {}
+    item_ctx = listing.get("product_name") or listing.get("item_name") or ""
+    cat_ctx = listing.get("category_label") or ""
+    listing_line = ""
+    if item_ctx or cat_ctx:
+        listing_line = f"거래 품목(맥락 유지용): {item_ctx} {('/' + cat_ctx) if cat_ctx else ''}\n"
     user_payload = (
         f"역할: {game_role} 모드의 상대 NPC\n"
+        f"{listing_line}"
         f"기존 페르소나: 성격={base_persona.get('personality','')} / "
         f"말투={base_persona.get('speech_style','')} / 배경={base_persona.get('backstory','')}\n"
         f"오프닝(맥락 보존, 크게 바꾸지 말 것): {base_persona.get('opening_line','')}\n"
         f"난이도 가감: {difficulty_adjustment}\n"
         f"이번에 자연스럽게 다룰 수 있는 위험 신호(라벨만, 실행 절차 금지): {labels}\n"
-        "위 페르소나를 같은 인물로 유지하되 말투/배경/페이싱만 살짝 다르게 변주해라."
+        "위 페르소나를 같은 인물로 유지하되 말투/배경/페이싱만 살짝 다르게 변주해라. "
+        "거래 품목은 바꾸지 마라."
     )
     try:
         result = call_llm_json(_VARIANT_SYSTEM, [{"role": "user", "content": user_payload}],

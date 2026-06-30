@@ -10,6 +10,38 @@
 
   let META = null; // 카탈로그 메타 (categories/conditions/products/...)
 
+  /* 한 줄 제목 → 카테고리 추론 (백엔드 category_infer.py 의 가벼운 미러).
+     라이브 UX 용이며, 최종 권위는 서버다. 더 구체적인 것부터 검사한다. */
+  const _INFER_RULES = [
+    ["laptop", ["맥북", "macbook", "노트북", "랩탑", "그램", "gram", "갤럭시북", "갤북", "씽크패드"]],
+    ["gaming", ["닌텐도", "스위치", "switch", "ps5", "ps4", "플스", "플레이스테이션", "xbox", "엑스박스", "스팀덱", "게임기", "조이콘", "rtx", "게이밍"]],
+    ["camera", ["카메라", "dslr", "미러리스", "캐논", "canon", "니콘", "nikon", "고프로", "gopro", "짐벌", "액션캠"]],
+    ["electronics", ["아이패드", "ipad", "갤럭시탭", "갤탭", "태블릿", "에어팟", "airpods", "버즈", "갤럭시워치", "애플워치", "스마트워치", "워치", "이어폰", "헤드폰", "스피커", "키보드", "마우스", "모니터", "ssd"]],
+    ["smartphone", ["아이폰", "iphone", "갤럭시", "galaxy", "z플립", "z폴드", "폴드", "플립", "픽셀", "pixel", "스마트폰", "핸드폰", "휴대폰", "공기계", "자급제"]],
+    ["camping", ["텐트", "캠핑", "랜턴", "코펠", "버너", "화로대", "타프", "침낭", "아이스박스", "아웃도어"]],
+    ["beauty", ["화장품", "에어랩", "고데기", "드라이기", "향수", "립스틱", "파운데이션", "뷰티", "쿠션", "세럼"]],
+    ["books", ["도서", "교재", "문제집", "참고서", "전공책", "전공서적", "만화책", "소설", "수험서", "원서"]],
+    ["fashion", ["패딩", "코트", "자켓", "재킷", "신발", "운동화", "스니커즈", "나이키", "nike", "아디다스", "adidas", "구두", "백팩", "핸드백", "지갑", "명품", "원피스", "청바지", "후드티", "맨투맨", "패션", "의류", "가방"]],
+    ["furniture", ["책상", "소파", "쇼파", "침대", "옷장", "서랍", "행거", "식탁", "책장", "매트리스", "화장대", "수납장", "가구"]],
+    ["sports", ["자전거", "헬스", "덤벨", "아령", "골프", "테니스", "라켓", "스키", "킥보드", "런닝머신", "요가매트", "축구", "농구"]],
+    ["kids", ["유아", "아기", "기저귀", "분유", "유모차", "카시트", "아기띠", "아동", "어린이", "보행기"]],
+    ["hobby", ["일렉기타", "통기타", "피아노", "드론", "레고", "프라모델", "피규어", "보드게임", "낚시", "악기"]],
+    ["home", ["청소기", "냉장고", "세탁기", "에어컨", "전자레인지", "밥솥", "가습기", "공기청정기", "식기세척기", "인덕션", "티비", "로봇청소기", "정수기", "선풍기", "가전"]],
+    ["books", ["책"]],
+    ["furniture", ["의자"]],
+  ];
+
+  function inferCategoryFromTitle(title) {
+    const raw = String(title || "").toLowerCase();
+    const squashed = raw.replace(/\s+/g, "");
+    for (const [cat, kws] of _INFER_RULES) {
+      for (const kw of kws) {
+        if (raw.indexOf(kw) >= 0 || squashed.indexOf(kw) >= 0) return cat;
+      }
+    }
+    return "random";
+  }
+
   /* ---------- 작은 DOM 헬퍼 ---------- */
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -91,7 +123,42 @@
   let sCatSel = null, sNameInput = null, sCondSel = null,
       sPriceInput = null, sMarketInput = null,
       sDefectGroup = null, sAccGroup = null, sTradeGroup = null,
-      sRefundInput = null, sProofGroup = null, sDefectWrap = null, sAccWrap = null;
+      sRefundInput = null, sProofGroup = null, sDefectWrap = null, sAccWrap = null,
+      sCatHint = null, userPickedCategory = false;
+
+  function _catLabelOf(key) {
+    if (!sCatSel) return key;
+    const o = Array.from(sCatSel.options).find((x) => x.value === key);
+    return o ? o.textContent : key;
+  }
+
+  function updateInferHint() {
+    if (!sCatHint || !sNameInput) return;
+    const title = sNameInput.value.trim();
+    if (!title) { sCatHint.textContent = ""; return; }
+    const inferred = inferCategoryFromTitle(title);
+    if (inferred === "random") {
+      sCatHint.textContent = "제목에서 카테고리를 추론하지 못했어요. 직접 골라주세요.";
+    } else if (userPickedCategory && sCatSel && sCatSel.value !== inferred) {
+      sCatHint.textContent = "제목 추론은 ‘" + _catLabelOf(inferred) + "’ 지만, 직접 고른 카테고리를 유지해요.";
+    } else {
+      sCatHint.textContent = "💡 제목에서 추론한 카테고리: " + _catLabelOf(inferred);
+    }
+  }
+
+  // 제목 입력 → 카테고리 라이브 추론 (사용자가 카테고리를 직접 바꾸기 전까지만 자동 반영)
+  function liveInferCategory() {
+    if (!sNameInput || !sCatSel) return;
+    const inferred = inferCategoryFromTitle(sNameInput.value);
+    if (inferred !== "random" && !userPickedCategory && sCatSel.value !== inferred) {
+      if (Array.from(sCatSel.options).some((o) => o.value === inferred)) {
+        sCatSel.value = inferred;
+        refreshNameDatalist(inferred);
+        rebuildSuggestionChips(inferred, sNameInput.value);
+      }
+    }
+    updateInferHint();
+  }
 
   function productsFor(cat) {
     return (META.products && META.products[cat]) || [];
@@ -147,25 +214,30 @@
     container.appendChild(el("p", "setup-hint",
       "내가 파는 물건을 정해두면, 찾아오는 구매자 NPC 가 이 물건을 보고 반응해요."));
 
-    // 카테고리 select
+    // 한 줄 판매글 제목(=상품명) + datalist — '가장 중요한 필드'. 여기서 카테고리를 추론한다.
+    sNameInput = el("input", "field-input");
+    sNameInput.type = "text";
+    sNameInput.maxLength = 60;
+    sNameInput.placeholder = "예: 아이폰 14 Pro 128GB 팔아요 / 맥북 에어 M1 급처";
+    sNameInput.setAttribute("list", "seller-name-options");
+    sNameInput.value = pf.product_name || "";
+    let dl = document.getElementById("seller-name-options");
+    if (!dl) { dl = el("datalist"); dl.id = "seller-name-options"; container.appendChild(dl); }
+    container.appendChild(labeledRow("판매글 제목 (상품명)", sNameInput));
+
+    // 카테고리 select — 제목에서 자동 추론되며, 직접 고르면 그 선택을 유지(수동 우선).
     sCatSel = el("select", "field-input");
     META.categories.forEach((c) => {
       if (c.key === "random") return; // 판매글은 구체 카테고리만
       const o = el("option", null, c.label); o.value = c.key; sCatSel.appendChild(o);
     });
-    sCatSel.value = pf.category || "electronics";
+    // 기존 판매글을 수정하는 경우(pf.category 존재) → 사용자가 고른 값으로 간주해 유지.
+    userPickedCategory = !!pf.category;
+    sCatSel.value = pf.category || (sNameInput.value ? inferCategoryFromTitle(sNameInput.value) : "electronics");
+    if (sCatSel.value === "random" || !sCatSel.value) sCatSel.value = "electronics";
     container.appendChild(labeledRow("카테고리", sCatSel));
-
-    // 상품명 + datalist
-    sNameInput = el("input", "field-input");
-    sNameInput.type = "text";
-    sNameInput.maxLength = 60;
-    sNameInput.placeholder = "예: MacBook Air M1";
-    sNameInput.setAttribute("list", "seller-name-options");
-    sNameInput.value = pf.product_name || "";
-    let dl = document.getElementById("seller-name-options");
-    if (!dl) { dl = el("datalist"); dl.id = "seller-name-options"; container.appendChild(dl); }
-    container.appendChild(labeledRow("상품명", sNameInput));
+    sCatHint = el("p", "setup-hint infer-hint");
+    container.appendChild(sCatHint);
 
     // 상태 select
     sCondSel = el("select", "field-input");
@@ -216,17 +288,22 @@
     sRefundInput.value = pf.refund_policy || "";
     container.appendChild(labeledRow("환불 원칙", sRefundInput));
 
-    // 이벤트: 카테고리/상품 변경 → 자동완성
+    // 이벤트: 카테고리/상품 변경 → 자동완성 + 라이브 추론
     sCatSel.addEventListener("change", () => {
+      userPickedCategory = true;           // 직접 골랐으니 이제 추론이 덮어쓰지 않는다
       refreshNameDatalist(sCatSel.value);
       sMarketInput.dataset.auto = "1";
       rebuildSuggestionChips(sCatSel.value, sNameInput.value);
+      updateInferHint();
     });
+    // 제목을 칠 때마다 카테고리 라이브 추론 (사용자가 직접 고르기 전까지)
+    sNameInput.addEventListener("input", liveInferCategory);
     sNameInput.addEventListener("change", () => applyProductAutofill(sCatSel.value, sNameInput.value));
     sNameInput.addEventListener("blur", () => applyProductAutofill(sCatSel.value, sNameInput.value));
 
     refreshNameDatalist(sCatSel.value);
     if (sNameInput.value) applyProductAutofill(sCatSel.value, sNameInput.value);
+    updateInferHint();
   }
 
   function getSeller() {

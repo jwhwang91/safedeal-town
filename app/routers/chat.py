@@ -267,12 +267,24 @@ def _apply_adaptive_start(conn, user, npc, mode, session_npc_json, seller_listin
         return npc, session_npc_json, None
     try:
         counterparty_kind = taxonomy.counterparty_kind_for(npc)
+        # 적응형 맥락의 '카테고리/매물': 모드에 맞는 진짜 값으로 넣는다.
+        #  - 판매자 모드(구매자 NPC): 플레이어가 올린 판매글의 카테고리/매물
+        #  - 구매자 모드(판매자 NPC): 그 NPC 매물의 카테고리/매물
+        # 이렇게 해야 변주가 '사용자가 고른 카테고리/판매글 안에서만' 다양해지고,
+        # 무관한 품목 카테고리로 새지 않는다.
+        if mode == "seller":
+            adaptive_category = (seller_listing or {}).get("canonical_category") \
+                or (seller_listing or {}).get("category") or "general"
+            adaptive_listing = seller_listing
+        else:
+            adaptive_category = npc.get("category")
+            adaptive_listing = npc.get("listing")
         selection = adaptive_selector.select_adaptive_patterns(
             conn, user["id"], mode, counterparty_kind,
-            category=npc.get("category"), difficulty=npc.get("difficulty"), limit=2,
+            category=adaptive_category, difficulty=npc.get("difficulty"), limit=2,
         )
         variant = persona_variant.build_persona_variant(
-            npc.get("persona") or {}, npc.get("listing"),
+            npc.get("persona") or {}, adaptive_listing,
             selection.get("selected_patterns") or [], mode,
             selection.get("difficulty_adjustment") or "same",
             provider=settings.adaptive_provider_effective,
@@ -440,6 +452,11 @@ def npc_card(
     seller_listing = prefs_mgr.get_seller_listing(conn, user["id"]) if mode == "seller" else None
     spawn_key = body.spawn_instance_id or npc_id
     card = persona_factory.build_profile_card(npc, mode, spawn_key, seller_listing)
+
+    # 판매자 모드: 구매자가 보낸 '첫 문의' 미리보기(중립·상품인지 — 유형 비노출).
+    if mode == "seller":
+        item = (seller_listing or {}).get("product_name") if seller_listing else None
+        card["inquiry_preview"] = persona_factory.neutral_inquiry_preview(item, spawn_key)
 
     # 시세 레이더(도구): 구매 시 시세 대비 가격이 수상하면 '주의' 힌트만 준다(정답 아님).
     effects = rewards_mgr.equipped_effects(conn, user["id"])

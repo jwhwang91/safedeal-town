@@ -16,6 +16,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from app.market import catalog
+from app.market import category_infer
 from app.market.normalizer import strip_personal
 
 _VALID_PRICE_PREF = {"bargain", "fair", "premium"}
@@ -122,14 +123,19 @@ def save_buyer_preferences(conn, user_id, buyer_category, price_pref, trade_pref
 
 
 def normalize_seller_listing(req) -> dict:
-    """SellerListingRequest → 위생처리된 판매글 dict (파생 필드 포함)."""
-    cat = (req.category or "electronics").lower()
-    if cat not in catalog.PRODUCTS:
-        cat = "electronics" if not catalog.is_category(cat) else cat
-        if cat == "random":
-            cat = "electronics"
-    canonical = catalog.canonical_of(cat)
+    """SellerListingRequest → 위생처리된 판매글 dict (파생 필드 포함).
+
+    카테고리는 '한 줄 제목(상품명)'에서 추론하되, 사용자가 구체 카테고리를 직접
+    고른 경우 그 선택을 우선한다(수동 우선). 추론도 실패하면 electronics 로 폴백.
+    """
     product_name = _clean_short(req.product_name, 60) or "중고 물품"
+    resolved = category_infer.resolve_seller_category(
+        product_name, req.category, default="electronics"
+    )
+    cat = resolved["category"]
+    if cat not in catalog.PRODUCTS:  # 안전망 (정상적으론 도달 안 함)
+        cat = "electronics"
+    canonical = catalog.canonical_of(cat)
     condition = req.condition if req.condition in catalog.CONDITION_LABEL else "lightly_used"
 
     template = catalog.find_template(cat, product_name)
@@ -149,6 +155,8 @@ def normalize_seller_listing(req) -> dict:
 
     return {
         "category": cat,
+        "inferred_category": resolved["inferred"],
+        "category_source": resolved["source"],
         "canonical_category": canonical,
         "category_label": catalog.CATEGORY_LABEL.get(cat, cat),
         "product_name": product_name,

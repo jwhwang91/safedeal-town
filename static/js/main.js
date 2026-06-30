@@ -49,6 +49,8 @@
     if (playerData.coins != null) document.getElementById("hud-coins").textContent = playerData.coins;
     if (playerData.items != null) document.getElementById("hud-items").textContent = playerData.items;
     if (playerData.game_role) setRoleHud(playerData.game_role);
+    // 마켓 요약(찾는 물건 / 내 판매글)은 /world 응답에만 들어온다. 있을 때만 갱신.
+    if (playerData.market) setMarketHud(playerData.market, playerData.game_role || "buyer");
   }
 
   function setRoleHud(role) {
@@ -60,6 +62,35 @@
     } else {
       el.textContent = "🛒 구매자 모드";
       el.className = "hud-role buyer";
+    }
+  }
+
+  // HUD 마켓 바: 구매자=찾는 물건(카테고리), 판매자=내 판매글. 편집 버튼 라벨도 모드별.
+  function setMarketHud(market, role) {
+    const wrap = document.getElementById("hud-market");
+    const txt = document.getElementById("hud-market-text");
+    const btn = document.getElementById("btn-market-edit");
+    if (!wrap || !txt || !btn) return;
+    if (role === "seller") {
+      const title = (market && market.seller_listing_title) || "판매글 미등록";
+      txt.textContent = "🏪 내 판매글: " + title;
+      btn.textContent = "판매글 수정";
+    } else {
+      const label = (market && market.buyer_category_label) || "전체";
+      txt.textContent = "🔎 찾는 물건: " + label;
+      btn.textContent = "검색 변경";
+    }
+    wrap.classList.remove("hidden");
+  }
+
+  // '검색 변경' / '판매글 수정' → 셋업 화면을 다시 연다 (카테고리/판매글 프리필).
+  async function openMarketSetup() {
+    try {
+      const setup = await API.game.getSetup();
+      SafeDealGame.setPaused(true);  // 셋업 입력 중 이동키가 먹지 않도록
+      if (global.SafeDealSetup) SafeDealSetup.open(setup);
+    } catch (err) {
+      toast(err.message || "마켓 설정을 열 수 없어요.");
     }
   }
 
@@ -118,6 +149,7 @@
 
   /* ---------- HUD 버튼 ---------- */
   document.getElementById("btn-role").addEventListener("click", switchRole);
+  document.getElementById("btn-market-edit").addEventListener("click", openMarketSetup);
   document.getElementById("btn-record").addEventListener("click", () => {
     SafeDealChat.openRecord();
   });

@@ -22,6 +22,12 @@
   let started = false;
   let gameRole = "buyer";
   let equippedEffects = [];  // 장착된 거래 도구 효과키 (체크리스트/답변칩에 사용)
+  let sellerTheme = "general_booth";  // 판매자 모드 부스 소품 테마 (내 카테고리 기반)
+  const inquiryAlertEl = document.getElementById("inquiry-alert");
+  let inquiryAlertCount = -1;  // 현재 표시된 대기 문의 수 (DOM 갱신 최소화)
+  if (inquiryAlertEl) {
+    inquiryAlertEl.addEventListener("click", () => openNearestWaiting());
+  }
 
   const keys = Object.create(null);
   const MOVE_KEYS = {
@@ -61,10 +67,12 @@
     );
   }
 
-  /* ---------- NPC 로밍(배회) ---------- */
+  /* ---------- NPC 로밍(배회) + 판매자 모드 접근 ---------- */
   const NPC_SPEED = 0.55;          // 플레이어보다 느긋하게
+  const NPC_APPROACH_SPEED = 0.7;  // 플레이어를 향해 다가올 땐 조금 더 목적성 있게
   const NPC_HALF = 9;
   const NPC_WANDER_TILES = 2.4;    // 집(자리)에서 벗어나는 최대 반경
+  const APPROACH_INTEREST_MIN = 0.4;
 
   function npcBoxHits(px, py) {
     return (
@@ -87,35 +95,121 @@
     s.tx = s.homePx; s.ty = s.homePy;
   }
 
-  function updateNpcs(now, TILE) {
-    SafeDealSpawns.list().forEach((s) => {
-      if (!s.repathAt || now >= s.repathAt) {
-        pickNpcTarget(s, TILE);
-        s.repathAt = now + 1500 + Math.random() * 2600; // 잠깐 멈췄다 다시 이동
-      }
-      const dx = s.tx - s.px, dy = s.ty - s.py;
-      const dist = Math.hypot(dx, dy);
-      if (dist > 1.5) {
-        const vx = (dx / dist) * NPC_SPEED;
-        const vy = (dy / dist) * NPC_SPEED;
-        let moved = false;
-        if (!npcBoxHits(s.px + vx, s.py)) { s.px += vx; moved = true; }
-        if (!npcBoxHits(s.px, s.py + vy)) { s.py += vy; moved = true; }
-        if (!moved) {
-          // 양쪽 다 막힘 → 다음 프레임에 곧바로 새 목적지를 고르게 한다.
-          // (now+250 으로 두면 프레임당 ~16ms 라 조건이 영영 안 맞아 그 자리에 얼어붙음)
-          s.repathAt = 0;
-          s.moving = false;
-        } else {
-          if (Math.abs(dx) > Math.abs(dy)) s.facing = dx < 0 ? "left" : "right";
-          else s.facing = dy < 0 ? "up" : "down";
-          s.walkPhase += 0.25;
-          s.moving = true;
-        }
-      } else {
+  // 한 점을 향해 충돌을 피하며 한 걸음. 반환: 남은 거리.
+  function stepToward(s, tx, ty, speed) {
+    const dx = tx - s.px, dy = ty - s.py;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= 1.5) { s.moving = false; return dist; }
+    const vx = (dx / dist) * speed, vy = (dy / dist) * speed;
+    let moved = false;
+    if (!npcBoxHits(s.px + vx, s.py)) { s.px += vx; moved = true; }
+    if (!npcBoxHits(s.px, s.py + vy)) { s.py += vy; moved = true; }
+    if (moved) {
+      if (Math.abs(dx) > Math.abs(dy)) s.facing = dx < 0 ? "left" : "right";
+      else s.facing = dy < 0 ? "up" : "down";
+      s.walkPhase += 0.25;
+      s.moving = true;
+    } else {
+      s.moving = false;
+    }
+    return dist;
+  }
+
+  function roamStep(s, now, TILE) {
+    if (!s.repathAt || now >= s.repathAt) {
+      pickNpcTarget(s, TILE);
+      s.repathAt = now + 1500 + Math.random() * 2600; // 잠깐 멈췄다 다시 이동
+    }
+    const moved = stepToward(s, s.tx, s.ty, NPC_SPEED);
+    // 양쪽 다 막혀 제자리면 다음 프레임에 곧바로 새 목적지를 고르게 한다.
+    if (moved > 1.5 && !s.moving) s.repathAt = 0;
+  }
+
+  function approachReady(s, nowMs) {
+    const delay = s.approach_delay_seconds;
+    if (delay == null) return false;                         // 이번엔 둘러보기만
+    if ((s.interest_level || 0) < APPROACH_INTEREST_MIN) return false;
+    return (nowMs - s.bornAt) / 1000 >= delay;
+  }
+
+  // 판매자 모드 구매자 NPC 의 접근 상태머신: roaming→interested→approaching→waiting
+  function updateSellerBuyer(s, now, nowMs, TILE) {
+    const st = s.approachState || "roaming";
+    if (st === "roaming") {
+      if (approachReady(s, nowMs)) {
+        s.approachState = "interested";
+        s.stateAt = nowMs;
         s.moving = false;
+      } else {
+        roamStep(s, now, TILE);
+      }
+      return;
+    }
+    if (st === "interested") {
+      s.moving = false;                                       // 잠깐 멈춰 '관심'(생각 말풍선)
+      if (nowMs - (s.stateAt || nowMs) > 1400) {
+        s.approachState = "approaching";
+        s.stateAt = nowMs;
+      }
+      return;
+    }
+    // approaching / waiting → 플레이어 옆으로
+    if (!player) return;
+    const standoff = TILE * 1.05;
+    const ang = Math.atan2(s.py - player.py, s.px - player.px);
+    const tx = player.px + Math.cos(ang) * standoff;
+    const ty = player.py + Math.sin(ang) * standoff;
+    stepToward(s, tx, ty, NPC_APPROACH_SPEED);
+    const dp = Math.hypot(player.px - s.px, player.py - s.py);
+    if (st === "approaching") {
+      if (dp <= TILE * 1.25) {
+        s.approachState = "waiting";
+        s.stateAt = nowMs;
+        if (!s.inquiryNotified) {
+          s.inquiryNotified = true;
+          if (global.SafeDeal && SafeDeal.toast) {
+            SafeDeal.toast("🔔 구매자가 문의를 보냈습니다 — 가까이서 E/Space 로 응대하세요");
+          }
+        }
+      }
+    } else { // waiting: 플레이어 바라보며 대기, 멀어지면 다시 따라감
+      s.facing = Math.abs(player.px - s.px) > Math.abs(player.py - s.py)
+        ? (player.px < s.px ? "left" : "right")
+        : (player.py < s.py ? "up" : "down");
+      if (dp > TILE * 2.6) s.approachState = "approaching";
+    }
+  }
+
+  function updateNpcs(now, TILE) {
+    const nowMs = Date.now();
+    SafeDealSpawns.list().forEach((s) => {
+      if (gameRole === "seller" && s.npc_kind === "buyer") {
+        updateSellerBuyer(s, now, nowMs, TILE);
+      } else {
+        roamStep(s, now, TILE);
       }
     });
+  }
+
+  // 가장 가까운 '대기 중(waiting)' 구매자를 응대 (알림 클릭/HUD 버튼용)
+  function openNearestWaiting() {
+    if (paused || !player) return;
+    let best = null, bd = Infinity;
+    SafeDealSpawns.list().forEach((s) => {
+      if (s.npc_kind !== "buyer") return;
+      if (s.approachState !== "waiting" && s.approachState !== "approaching") return;
+      const d = Math.hypot(s.px - player.px, s.py - player.py);
+      if (d < bd) { bd = d; best = s; }
+    });
+    if (best && global.SafeDealChat && SafeDealChat.openCard) SafeDealChat.openCard(best);
+  }
+
+  function waitingCount() {
+    let n = 0;
+    SafeDealSpawns.list().forEach((s) => {
+      if (s.npc_kind === "buyer" && s.approachState === "waiting") n++;
+    });
+    return n;
   }
 
   /* ---------- 업데이트 ---------- */
@@ -165,6 +259,22 @@
           "<b>" + escapeHtml(nearby.name) + "</b> 와 대화하기";
       }
     }
+
+    updateInquiryAlert();
+  }
+
+  // 판매자 모드: 대기 중인 구매자 문의 알림(클릭하면 응대). 구매자 모드/0건이면 숨긴다.
+  function updateInquiryAlert() {
+    if (!inquiryAlertEl) return;
+    const n = gameRole === "seller" ? waitingCount() : 0;
+    if (n === inquiryAlertCount) return;
+    inquiryAlertCount = n;
+    if (n > 0) {
+      inquiryAlertEl.textContent = "🔔 구매자 문의 " + n + "건 — 클릭해 응대";
+      inquiryAlertEl.classList.remove("hidden");
+    } else {
+      inquiryAlertEl.classList.add("hidden");
+    }
   }
 
   function tryInteract() {
@@ -195,7 +305,16 @@
   }
 
   // 말풍선 문구: 인물의 한마디(tagline, 무엇을 팔/사는지 + 성격). 없으면 물건명으로 폴백.
+  // 판매자 모드 구매자는 접근 상태에 따라 '관심(👀)→문의 미리보기'로 바뀐다 (유형은 비노출).
   function balloonText(s) {
+    if (s.npc_kind === "buyer" && gameRole === "seller") {
+      const st = s.approachState || "roaming";
+      if (st === "interested") return "👀";
+      if (st === "approaching" || st === "waiting") {
+        const q = String(s.inquiry_preview || s.tagline || "이거 아직 있나요?").trim();
+        return q.length > 24 ? q.slice(0, 24) + "…" : q;
+      }
+    }
     const line = String(s.tagline || "").trim();
     if (line) return line.length > 24 ? line.slice(0, 24) + "…" : line;
     const item = String(s.item_name || "").trim();
@@ -326,6 +445,11 @@
     ctx.translate(-camX, -camY);
     SafeDealWorldMap.draw(ctx, t, camX, camY, vw, vh);
 
+    // 판매자 모드: 플레이어 자리에 좌판/돗자리(플레이어보다 먼저 그려 뒤에 깔린다)
+    if (player && gameRole === "seller") {
+      SafeDealSprites.drawSellerBooth(ctx, player.px, player.py, sellerTheme, "내 좌판");
+    }
+
     // 액터(NPC/플레이어)를 y 순으로 그려 앞뒤 겹침 자연스럽게
     const actors = SafeDealSpawns.list().map((s) => ({
       kind: "npc", y: s.py, ref: s,
@@ -362,6 +486,13 @@
     }[c]));
   }
 
+  // 판매자 카테고리(표준) → 부스 소품 테마. 모르면 general_booth.
+  function _boothTheme(cat) {
+    const ok = { electronics: 1, camping: 1, beauty: 1, home: 1, fashion: 1, books: 1, general: 1 };
+    const c = ok[cat] ? cat : "general";
+    return c + "_booth";
+  }
+
   function applyBanner() {
     if (!bannerEl) return;
     if (gameRole === "seller") {
@@ -395,6 +526,8 @@
       avatar: (world.player && world.player.avatar) || SafeDealAvatar.DEFAULT_AVATAR,
     };
     equippedEffects = (world.player && world.player.equipped_effects) || [];
+    sellerTheme = _boothTheme((world.player && world.player.seller_category) || "general");
+    inquiryAlertCount = -1;  // 알림 표시 강제 재계산
     applyBanner();
     if (global.SafeDeal && SafeDeal.updateHud) SafeDeal.updateHud(world.player);
     if (global.SafeDeal && SafeDeal.setRoleHud) SafeDeal.setRoleHud(gameRole);
@@ -433,10 +566,13 @@
     SafeDealSpawns.reset();
     for (const k in keys) keys[k] = false;
     hintEl.classList.add("hidden");
+    if (inquiryAlertEl) inquiryAlertEl.classList.add("hidden");
+    inquiryAlertCount = -1;
   }
 
   global.SafeDealGame = {
     loadWorld, refreshWorld, start, setPaused, reset,
+    openNearestWaiting,
     effects: () => equippedEffects.slice(),
     role: () => gameRole,
   };

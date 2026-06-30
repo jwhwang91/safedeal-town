@@ -170,7 +170,10 @@ def select_adaptive_patterns(conn: sqlite3.Connection, user_id: int, game_role: 
     candidates = list(_CANDIDATES_BY_COUNTERPARTY.get(counterparty_kind, []))
     profile = get_user_training_profile(conn, user_id, role)
     # difficulty: 현재 NPC 의 실제 난이도 → 가감 클램프에 사용(아래).
-    # category: 향후 카테고리별 패턴 선택을 위한 예약 인자 (현재 미사용, 인터페이스 안정용).
+    # category: 사용자가 고른 구매 카테고리(구매자 모드) / 판매글 카테고리(판매자 모드).
+    #   후보(candidates)는 이미 '상대 종류'로 한정돼 있어 무관한 품목 카테고리로 새지 않는다.
+    #   여기선 category 를 '서버 전용 컨텍스트'로 기록해, 변주가 이 카테고리/판매글 안에서만
+    #   다양해지도록 한다 (정답 라벨은 바꾸지 않는다).
     recommended_adj = _clamp_difficulty_adjustment(profile["recommended_difficulty"], difficulty)
 
     base = {
@@ -178,6 +181,7 @@ def select_adaptive_patterns(conn: sqlite3.Connection, user_id: int, game_role: 
         "avoided_patterns": [],
         "difficulty_adjustment": "same",
         "reason": "",
+        "category": category,
         "profile_summary": _profile_summary(profile),
     }
 

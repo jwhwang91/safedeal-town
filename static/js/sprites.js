@@ -232,5 +232,42 @@
     ctx.restore();
   }
 
-  global.SafeDealSprites = { drawBuilding, drawLandmark, drawBoothProps, drawBuyerProp };
+  /* ---------- 판매자 모드: 플레이어 부스/돗자리 ---------- */
+  // 플레이어(판매자)가 선 자리에 작은 좌판/돗자리 + 카테고리 소품 + '판매중' 팻말.
+  // 플레이어보다 먼저(뒤에) 그려서 플레이어가 좌판 앞에 선 것처럼 보이게 한다.
+  function drawSellerBooth(ctx, cx, cy, theme, label) {
+    ctx.save();
+    // 돗자리(그림자 톤)
+    ctx.fillStyle = "rgba(150,110,70,.20)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 16, 36, 17, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(120,90,60,.45)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // 카테고리 소품이 올라간 좌판 (플레이어 뒤쪽 살짝 위)
+    drawBoothProps(ctx, cx, cy - 16, theme);
+
+    // '판매중' 팻말
+    const tag = label || "판매중";
+    ctx.font = "10px 'Jua', sans-serif";
+    const tw = ctx.measureText(tag).width + 12;
+    const sx = cx - tw / 2, sy = cy - 40;
+    rr(ctx, sx, sy, tw, 14, 4);
+    ctx.fillStyle = "#e0a93c";
+    ctx.fill();
+    ctx.strokeStyle = "#7a4d2a";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "#3a3226";
+    ctx.textAlign = "center";
+    ctx.fillText(tag, cx, sy + 11);
+    ctx.textAlign = "left";
+  }
+
+  global.SafeDealSprites = {
+    drawBuilding, drawLandmark, drawBoothProps, drawBuyerProp, drawSellerBooth,
+  };
 })(window);

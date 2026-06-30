@@ -65,6 +65,19 @@ def build_seller_system_prompt(npc: dict) -> str:
 4. 상대(구매자)가 한 말에 실제로 반응해라. 질문을 무시하고 네 할 말만 하지 마라.
 """
 
+    # 동적 매물 상세(상태/하자/구성품)가 있으면 판매자가 자기 물건을 더 구체적으로 말하게 한다.
+    listing = npc.get("listing") if isinstance(npc.get("listing"), dict) else None
+    if listing:
+        detail = []
+        if listing.get("condition_label"):
+            detail.append(f"- 상태: {listing['condition_label']}")
+        if listing.get("disclosed_defects"):
+            detail.append("- 솔직히 말할 수 있는 하자: " + ", ".join(listing["disclosed_defects"][:4]))
+        if listing.get("accessories"):
+            detail.append("- 구성품: " + ", ".join(listing["accessories"][:5]))
+        if detail:
+            base += "\n[네 물건 상세]\n" + "\n".join(detail) + "\n"
+
     if npc["role"] == "scammer":
         playbook = npc["tactics"]
         tactic_brief = "\n".join(
@@ -220,14 +233,34 @@ def _seller_listing_brief(listing: dict | None) -> str:
     if not listing:
         return ""
     lines = [f"- 상품: {listing.get('product_name', '중고 물품')}"]
+    if listing.get("category_label"):
+        lines.append(f"- 카테고리: {listing['category_label']}")
     if listing.get("condition_label"):
         lines.append(f"- 상태: {listing['condition_label']}")
-    if listing.get("listing_price"):
-        lines.append(f"- 판매가: {listing['listing_price']:,}원")
+    price = listing.get("listing_price") or 0
+    market = listing.get("market_price") or 0
+    if price:
+        line = f"- 판매가: {price:,}원"
+        if market:
+            # 시세 대비 위치 — 구매자가 흥정/의심의 근거로 자연스럽게 쓸 수 있게.
+            ratio = price / market
+            if ratio <= 0.75:
+                line += f" (시세 약 {market:,}원보다 꽤 쌈)"
+            elif ratio >= 1.1:
+                line += f" (시세 약 {market:,}원보다 비쌈)"
+            else:
+                line += f" (시세 약 {market:,}원 수준)"
+        lines.append(line)
+    elif market:
+        lines.append(f"- 시세: 약 {market:,}원")
     if listing.get("disclosed_defects"):
         lines.append("- 판매자가 '미리 고지'한 하자: " + ", ".join(listing["disclosed_defects"]))
     if listing.get("accessories"):
         lines.append("- 구성품: " + ", ".join(listing["accessories"][:5]))
+    if listing.get("trade_methods"):
+        lines.append("- 판매자가 받는 거래방식: " + ", ".join(listing["trade_methods"]))
+    if listing.get("proof_labels"):
+        lines.append("- 판매자가 준비한 증거: " + ", ".join(listing["proof_labels"]))
     if listing.get("refund_policy"):
         lines.append(f"- 판매자 환불 원칙: {listing['refund_policy']}")
     return (

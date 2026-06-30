@@ -16,6 +16,7 @@
   const elCardName = document.getElementById("card-name");
   const elCardSub = document.getElementById("card-sub");
   const elCardProfile = document.getElementById("card-profile");
+  const elCardInquiry = document.getElementById("card-inquiry");
   const elCardListing = document.getElementById("card-listing");
 
   const elAvatar = document.getElementById("chat-avatar");
@@ -163,6 +164,16 @@
     elCardSub.textContent =
       (card.appearance ? card.appearance + " · " : "") +
       roleWord + " · 난이도 " + diffLabel(card.difficulty);
+
+    // 판매자 모드: 구매자가 보낸 '첫 문의' 미리보기 (중립 — 유형은 대화로 알아내야 함)
+    if (elCardInquiry) {
+      if (seller && card.inquiry_preview) {
+        elCardInquiry.textContent = "💬 “" + card.inquiry_preview + "”";
+        elCardInquiry.classList.remove("hidden");
+      } else {
+        elCardInquiry.classList.add("hidden");
+      }
+    }
 
     // 프로필 메타 (사기꾼도 좋아 보일 수 있음 — 정답 아님)
     const p = card.profile || {};

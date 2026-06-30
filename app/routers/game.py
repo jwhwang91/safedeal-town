@@ -341,6 +341,21 @@ def get_world(
         avatar = {**avatar, **overrides}
     effects = sorted(rewards_mgr.equipped_effects(conn, user["id"]))
 
+    # HUD 표시용 마켓 요약: 구매자 모드는 '찾는 물건(카테고리)', 판매자 모드는 '내 판매글'.
+    prefs = prefs_mgr.get_preferences(conn, user["id"])
+    buyer_cat = prefs.get("buyer_category") or "random"
+    seller_listing = prefs.get("seller_listing") or None
+    market_hud = {
+        "buyer_category": buyer_cat,
+        "buyer_category_label": catalog.CATEGORY_LABEL.get(buyer_cat, "전체"),
+        "seller_listing_title": (
+            (seller_listing.get("product_name") if seller_listing else None) or None
+        ),
+        "seller_category_label": (
+            seller_listing.get("category_label") if seller_listing else None
+        ),
+    }
+
     return {
         "player": {
             "display_name": user["display_name"],
@@ -353,6 +368,7 @@ def get_world(
             "coins": _coins(user),
             "items": _item_count(user),
             "equipped_effects": effects,
+            "market": market_hud,
         },
         "map": profile["map"],
         "spawns": spawns,

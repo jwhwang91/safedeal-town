@@ -138,6 +138,24 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 }
 .hud-btn:hover { background: var(--terracotta); }
 
+/* HUD 마켓 바: 찾는 물건(구매) / 내 판매글(판매) + 편집 버튼 */
+.hud-market {
+  display: inline-flex; align-items: center; gap: .45rem;
+  margin-left: .5rem; max-width: 42vw;
+  background: rgba(255,250,240,.14); border-radius: 10px; padding: .2rem .3rem .2rem .6rem;
+}
+.hud-market.hidden { display: none; }
+.hud-market-text {
+  font-size: .8rem; color: var(--cream);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32vw;
+}
+.hud-market-edit {
+  font-family: 'Gowun Dodum', sans-serif; font-size: .74rem;
+  background: var(--gold); color: var(--ink); border: none;
+  border-radius: 8px; padding: .25rem .55rem; cursor: pointer; white-space: nowrap;
+}
+.hud-market-edit:hover { background: var(--terracotta); color: #fff; }
+
 /* ---------- 캔버스 무대 ---------- */
 #stage {
   flex: 1; position: relative;
@@ -173,6 +191,20 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
   max-width: 90%; text-align: center; box-shadow: var(--shadow-sm);
 }
 #objective-banner b { color: var(--terracotta); }
+
+/* 판매자 모드: 대기 중 구매자 문의 알림 (클릭하면 응대) */
+#inquiry-alert {
+  position: absolute; top: 56px; right: 14px;
+  background: var(--terracotta); color: #fff;
+  font-family: 'Jua', sans-serif; font-size: .86rem;
+  padding: .5rem .9rem; border-radius: 12px;
+  border: 2px solid var(--ink); box-shadow: var(--shadow-sm);
+  cursor: pointer; animation: bob-side 1.2s ease-in-out infinite;
+  z-index: 5;
+}
+#inquiry-alert.hidden { display: none; }
+#inquiry-alert:hover { filter: brightness(1.07); }
+@keyframes bob-side { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-4px);} }
 
 /* 동네 이름 (IP/위치 기반) — 좌상단 팻말 */
 #town-name {
@@ -230,6 +262,13 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
   font-size: .74rem; background: #fff; border: 1.5px solid #e3d6ba;
   border-radius: 14px; padding: .15rem .5rem; color: var(--ink-soft);
 }
+/* 판매자 모드 카드: 구매자가 보낸 첫 문의 미리보기 (중립) */
+.card-inquiry {
+  margin: .7rem 1rem 0; padding: .55rem .8rem;
+  background: #eef4fb; border: 1.5px solid #c4d6ec; border-radius: 12px;
+  font-size: .9rem; color: #2b3a4d; line-height: 1.4;
+}
+.card-inquiry.hidden { display: none; }
 .card-listing {
   margin: .7rem 1rem; padding: .8rem .9rem;
   background: #fff7e6; border: 2px dashed var(--gold); border-radius: 14px;
@@ -597,6 +636,7 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 
 /* ---------- 위시리스트 / 판매글 폼 (listing_setup.js) ---------- */
 .setup-hint { font-size: .78rem; color: var(--ink-soft); margin-bottom: .55rem; }
+.infer-hint { color: var(--terracotta); margin: .25rem 0 .55rem; min-height: 1.1em; }
 .field { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .6rem; }
 .field-label { font-size: .8rem; color: var(--ink-soft); }
 .field-input {
