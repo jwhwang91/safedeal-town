@@ -23,10 +23,13 @@ from app import aftermath as aftermath_mod
 from app import preferences as prefs_mgr
 from app import rewards as rewards_mgr
 from app import spawns as spawn_mgr
+from app.ai import adaptive_memory, adaptive_repository, adaptive_selector, persona_variant
+from app.ai import pattern_taxonomy as taxonomy
 from app.ai import persona_factory
 from app.ai.judge_agent import JudgeAgent
 from app.ai.personas import BUYER_BEHAVIORS, SELLER_MODE_DISCLAIMER, TACTICS
 from app.ai.roleplay import BuyerAgent, SellerAgent
+from app.config import get_settings
 from app.database import db_dependency
 from app.deps import get_current_user
 from app.models import (
@@ -252,6 +255,69 @@ def _resolve_spawn(conn: sqlite3.Connection, user_id: int, body: StartChatReques
 
 
 # ---------------------------------------------------------------
+def _apply_adaptive_start(conn, user, npc, mode, session_npc_json, seller_listing):
+    """시작 시 적응형 선택 + 안전한 페르소나 변주를 적용한다.
+
+    반환: (npc(변주 반영 가능), session_npc_json(변주 반영), adaptive_ctx|None)
+    적응형 OFF 이거나 어떤 예외가 나도 기존 npc/세션 흐름을 그대로 돌려준다(게임 보존).
+    숨은 선택 로직은 프론트로 절대 나가지 않는다 (서버 전용 컨텍스트로만 저장).
+    """
+    settings = get_settings()
+    if not settings.adaptive_scenarios_enabled:
+        return npc, session_npc_json, None
+    try:
+        counterparty_kind = taxonomy.counterparty_kind_for(npc)
+        selection = adaptive_selector.select_adaptive_patterns(
+            conn, user["id"], mode, counterparty_kind,
+            category=npc.get("category"), difficulty=npc.get("difficulty"), limit=2,
+        )
+        variant = persona_variant.build_persona_variant(
+            npc.get("persona") or {}, npc.get("listing"),
+            selection.get("selected_patterns") or [], mode,
+            selection.get("difficulty_adjustment") or "same",
+            provider=settings.adaptive_provider_effective,
+        )
+        npc_varied = persona_variant.apply_variant_to_npc(npc, variant)
+        new_json = json.dumps(npc_varied, ensure_ascii=False)
+        ctx = {"counterparty_kind": counterparty_kind,
+               "selection": selection, "variant": variant}
+        return npc_varied, new_json, ctx
+    except Exception:
+        # 적응형이 어떤 이유로든 실패해도 기존 정적/동적 페르소나로 그대로 진행한다.
+        return npc, session_npc_json, None
+
+
+def _store_adaptive_context(conn, session_id, user_id, game_role, ctx) -> None:
+    """선택된 패턴/변주를 서버 전용 컨텍스트 + 설명 이벤트로 남긴다 (best-effort)."""
+    if not ctx:
+        return
+    try:
+        sel = ctx.get("selection") or {}
+        variant = ctx.get("variant") or {}
+        adaptive_repository.insert_adaptive_context(
+            conn, session_id, user_id,
+            sel.get("selected_patterns"), sel.get("avoided_patterns"),
+            sel.get("difficulty_adjustment"), variant,
+        )
+        adaptive_repository.insert_evolution_event(conn, {
+            "user_id": user_id,
+            "game_role": game_role,
+            "new_session_id": session_id,
+            "selected_persona_family": variant.get("scenario_type"),
+            "selected_patterns_json": adaptive_repository.json_dumps(
+                [p.get("pattern_key") for p in (sel.get("selected_patterns") or [])]),
+            "avoided_patterns_json": adaptive_repository.json_dumps(
+                [p.get("label") for p in (sel.get("avoided_patterns") or [])]),
+            "difficulty_adjustment": sel.get("difficulty_adjustment"),
+            "reason": sel.get("reason"),
+            "provider": variant.get("provider", "template"),
+        })
+    except Exception:
+        # 설명/컨텍스트 저장 실패는 게임에 영향 없음.
+        pass
+
+
+# ---------------------------------------------------------------
 @router.post("/start")
 def start_chat(
     body: StartChatRequest,
@@ -271,6 +337,12 @@ def start_chat(
         session_npc_json = None
     mode = "seller" if npc["npc_kind"] == "buyer" else "buyer"
     seller_listing = prefs_mgr.get_seller_listing(conn, user["id"]) if mode == "seller" else None
+
+    # 적응형: 약점 위주 패턴 선택 + 안전한 페르소나 변주 (숨은 로직은 서버 전용; 실패 시 무영향)
+    npc, session_npc_json, adaptive_ctx = _apply_adaptive_start(
+        conn, user, npc, mode, session_npc_json, seller_listing
+    )
+
     market_seed_json = (
         json.dumps(npc.get("listing"), ensure_ascii=False) if npc.get("listing") else None
     )
@@ -284,6 +356,8 @@ def start_chat(
         (session_id, user["id"], npc["id"], mode, npc["npc_kind"],
          npc["role"], body.spawn_instance_id, session_npc_json, market_seed_json, _now()),
     )
+    # 선택된 패턴/변주를 서버 전용 컨텍스트로 저장 (프론트로는 안 나감)
+    _store_adaptive_context(conn, session_id, user["id"], mode, adaptive_ctx)
     # 말 건 스폰은 활성 풀에서 빼서 거래 도중 사라지지 않게 한다
     spawn_mgr.engage(conn, user["id"], body.spawn_instance_id)
 
@@ -406,6 +480,11 @@ def send_message(
         "VALUES (?, ?, 'player', ?, ?)",
         (body.session_id, next_turn, body.message.strip(), _now()),
     )
+    # 느린 NPC 응답(local_claude/openai 는 수 초~수십 초) 동안 쓰기 잠금을 붙들지 않도록
+    # 플레이어 메시지를 '먼저' 커밋한다. 그래야 같은 시간에 들어오는 🚩 의심표시·스폰 폴링·
+    # 다른 거래 쓰기가 'database is locked' 로 막히지 않는다. (WAL+busy_timeout 만으로는
+    # 한 요청이 LLM 호출 내내 쓰기 트랜잭션을 점유하면 다른 쓰기가 타임아웃된다.)
+    conn.commit()
 
     npc = _npc_from_session(conn, sess)
     seller_listing = (
@@ -480,6 +559,33 @@ def resolve_trade(
 
 
 # ---------------------------------------------------------------
+def _record_adaptive(conn, user, sess, npc, transcript, result, decision, score,
+                     correct, checked, rw) -> dict | None:
+    """완료된 거래를 적응형 메모리에 기록하고, 결과 화면용 학습 요약을 돌려준다.
+
+    설계: 규칙기반 채점(result)은 권위 그대로. 여기선 '훈련 신호'로만 환원한다.
+    적응형이 꺼져 있거나(ADAPTIVE_SCENARIOS_ENABLED=false) 어떤 예외가 나도
+    None 을 돌려주고, 기존 거래 흐름은 전혀 영향받지 않는다.
+    """
+    if not get_settings().adaptive_scenarios_enabled:
+        return None
+    try:
+        enriched = dict(result)
+        enriched["decision"] = decision
+        enriched["score"] = score
+        enriched["correct"] = correct
+        return adaptive_memory.record_session_outcome(
+            conn, user["id"], sess["id"],
+            npc=npc, transcript=transcript, result=enriched,
+            checklist=checked, rewards=rw,
+            game_role=(sess["game_role"] if "game_role" in sess.keys() else None),
+        )
+    except Exception:
+        # 적응형 기록이 어떤 이유로든 실패해도 게임/결과는 그대로 유지된다.
+        return None
+
+
+# ---------------------------------------------------------------
 def _resolve_buyer_mode(conn, user, sess, npc, transcript, decision, checklist=None) -> dict:
     if decision not in _BUYER_DECISIONS:
         raise HTTPException(status_code=400, detail="구매자 모드에서 쓸 수 없는 결정입니다.")
@@ -509,8 +615,11 @@ def _resolve_buyer_mode(conn, user, sess, npc, transcript, decision, checklist=N
         "reward_items_json": json.dumps(reward_items, ensure_ascii=False) if reward_items else None,
         "checklist_json": json.dumps(checked, ensure_ascii=False) if checked else None,
     }
+    rw = _rewards(user, xp_delta, trust_delta, econ)
     _persist(conn, user, sess, npc, "buyer", result, score, correct,
              xp_delta, trust_delta, decision, econ, extras)
+    learning = _record_adaptive(conn, user, sess, npc, transcript, result,
+                                decision, score, correct, checked, rw)
 
     return {
         "mode": "buyer",
@@ -522,12 +631,13 @@ def _resolve_buyer_mode(conn, user, sess, npc, transcript, decision, checklist=N
         "detected_flags": result["detected_flags"],
         "missed_flags": result["missed_flags"],
         "coaching": result["coaching"],
-        "rewards": _rewards(user, xp_delta, trust_delta, econ),
+        "rewards": rw,
         "reward_items": reward_items,
         "checklist": checked,
         "checklist_bonus": bonus,
         "aftermath": aftermath_mod.aftermath_for(result["verdict"]),
         "annotated_transcript": annotated,
+        "learning": learning,
     }
 
 
@@ -564,8 +674,11 @@ def _resolve_seller_mode(conn, user, sess, npc, transcript, decision, checklist=
         "reward_items_json": json.dumps(reward_items, ensure_ascii=False) if reward_items else None,
         "checklist_json": json.dumps(checked, ensure_ascii=False) if checked else None,
     }
+    rw = _rewards(user, xp_delta, trust_delta, econ)
     _persist(conn, user, sess, npc, "seller", result, score, correct,
              xp_delta, trust_delta, decision, econ, extras)
+    learning = _record_adaptive(conn, user, sess, npc, transcript, result,
+                                decision, score, correct, checked, rw)
 
     return {
         "mode": "seller",
@@ -579,12 +692,13 @@ def _resolve_seller_mode(conn, user, sess, npc, transcript, decision, checklist=
         "missed_flags": result["missed_flags"],
         "coaching": result["coaching"],
         "disclaimer": SELLER_MODE_DISCLAIMER,
-        "rewards": _rewards(user, xp_delta, trust_delta, econ),
+        "rewards": rw,
         "reward_items": reward_items,
         "checklist": checked,
         "checklist_bonus": bonus,
         "aftermath": aftermath_mod.aftermath_for(result["verdict"]),
         "annotated_transcript": annotated,
+        "learning": learning,
     }
 
 

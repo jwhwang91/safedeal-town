@@ -203,4 +203,21 @@ def run_migrations(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # ---- 적응형 시나리오 엔진 (방어 훈련 커리큘럼) ----
+    # 멱등 생성 + 분류표 스냅샷 안전 UPSERT. SQL 은 adaptive_repository(=DB 계층)에 모아둔다.
+    # 실패해도 기존 게임은 그대로 동작해야 하므로 전체를 best-effort 로 감싼다.
+    try:
+        from app.ai import adaptive_repository
+
+        adaptive_repository.create_adaptive_tables(conn)
+        adaptive_repository.seed_pattern_catalog(conn)
+    except Exception as exc:
+        # 적응형 테이블 생성/시드가 어떤 이유로든 실패해도 기존 데이터/게임은 보존된다.
+        # 단, 결정적 결함(DDL 오타 등)이 조용히 묻히지 않도록 경고는 남긴다.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "adaptive schema setup skipped: %s", exc, exc_info=True
+        )
+
     conn.commit()

@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
 <!-- ?v= 는 캐시 무효화용. 정적 파일을 고칠 때마다 숫자를 올리면 브라우저가 새로 받는다. -->
-<link rel="stylesheet" href="/static/css/style.css?v=8" />
+<link rel="stylesheet" href="/static/css/style.css?v=9" />
 </head>
 <body>
 
@@ -158,7 +158,7 @@
   <div id="stage">
     <canvas id="game-canvas" width="960" height="640"></canvas>
     <div id="town-name" class="hidden">🏘️ <span id="town-name-text"></span></div>
-    <div id="build-badge" title="실행 중인 클라이언트 빌드">build v8</div>
+    <div id="build-badge" title="실행 중인 클라이언트 빌드">build v9</div>
     <div id="interact-hint" class="hidden">
       <span class="key">E</span> 또는 <span class="key">Space</span> — 대화하기
     </div>
@@ -292,6 +292,13 @@
       <div id="result-flags"></div>
     </div>
 
+    <!-- 적응형 학습 피드백 (결과 이후에만, 라벨/원칙만 노출) -->
+    <div class="result-section hidden" id="learning-section">
+      <h4>🎓 이번 훈련에서 다룬 위험 신호</h4>
+      <div id="result-learning"></div>
+      <p class="learning-next hidden" id="learning-next"></p>
+    </div>
+
     <div class="result-section">
       <h4>💬 대화 다시 보기 <span class="hint">— 상대가 쓴 수법/행동이 표시됩니다</span></h4>
       <div class="transcript-review" id="result-transcript"></div>
@@ -308,7 +315,10 @@
   <div class="record-window">
     <header class="record-header">
       <h2>📒 전적실</h2>
-      <button class="chat-close" id="record-close">✕</button>
+      <div class="inv-head-actions">
+        <button class="hud-btn" id="btn-training">🎓 실력 분석</button>
+        <button class="chat-close" id="record-close">✕</button>
+      </div>
     </header>
     <div class="record-stats" id="record-stats"></div>
     <h4 class="record-subtitle">🏆 명예의 전당</h4>
@@ -347,6 +357,22 @@
   </div>
 </div>
 
+<!-- ================= 실력 분석 / 훈련 리포트 모달 (적응형) ================= -->
+<div id="training-overlay" class="overlay hidden">
+  <div class="record-window">
+    <header class="record-header">
+      <h2>🎓 실력 분석 · 훈련 리포트</h2>
+      <div class="inv-head-actions">
+        <button class="hud-btn" id="btn-training-reset" title="이 계정의 적응형 훈련 메모리만 초기화">♻️ 메모리 초기화</button>
+        <button class="chat-close" id="training-close">✕</button>
+      </div>
+    </header>
+    <p class="inv-hint" id="training-note">완료한 거래에서 잘 잡아낸 / 자주 놓친 위험 신호를 분석해
+      약한 부분을 더 자주 훈련하도록 도와줘요. (방어 훈련용 — 실제 사기 수법은 다루지 않아요)</p>
+    <div class="training-body" id="training-body"></div>
+  </div>
+</div>
+
 <!-- ================= 도움말 모달 ================= -->
 <div id="help-overlay" class="overlay hidden">
   <div class="help-window">
@@ -379,18 +405,18 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/static/js/api.js?v=8"></script>
-<script src="/static/js/auth.js?v=8"></script>
-<script src="/static/js/avatar.js?v=8"></script>
-<script src="/static/js/sprites.js?v=8"></script>
-<script src="/static/js/world_map.js?v=8"></script>
-<script src="/static/js/spawn_manager.js?v=8"></script>
-<script src="/static/js/game.js?v=8"></script>
-<script src="/static/js/listing_setup.js?v=8"></script>
-<script src="/static/js/setup.js?v=8"></script>
-<script src="/static/js/checklist.js?v=8"></script>
-<script src="/static/js/chat.js?v=8"></script>
-<script src="/static/js/inventory.js?v=8"></script>
-<script src="/static/js/main.js?v=8"></script>
+<script src="/static/js/api.js?v=9"></script>
+<script src="/static/js/auth.js?v=9"></script>
+<script src="/static/js/avatar.js?v=9"></script>
+<script src="/static/js/sprites.js?v=9"></script>
+<script src="/static/js/world_map.js?v=9"></script>
+<script src="/static/js/spawn_manager.js?v=9"></script>
+<script src="/static/js/game.js?v=9"></script>
+<script src="/static/js/listing_setup.js?v=9"></script>
+<script src="/static/js/setup.js?v=9"></script>
+<script src="/static/js/checklist.js?v=9"></script>
+<script src="/static/js/chat.js?v=9"></script>
+<script src="/static/js/inventory.js?v=9"></script>
+<script src="/static/js/main.js?v=9"></script>
 </body>
 </html>

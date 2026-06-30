@@ -95,8 +95,70 @@ NPC 매물은 '시장 맥락 제공자'로 생성됩니다. `.env` 의 `MARKET_L
 - 결과 모달에 **"거래 후 상황" + "현실에서의 교훈"** 을 짧게 보여줍니다 (교육적, 비자극적).
 - 🎒 가방 → **내 거래 습관**: 기존 거래 기록으로 강점/보완점/다음 훈련 추천을 요약합니다.
 
-> 🧩 적응형 장기 메모리(Adaptive Scenario Evolution Engine)는 **아직 미구현**입니다.
-> 위 시스템들은 향후 그 엔진과 호환되도록(선호/판매글/매물 씨앗을 일반화) 설계되었습니다.
+---
+
+## 🧠 적응형 시나리오 엔진 (Adaptive Scenario Evolution Engine)
+
+> ⚠️ **이것은 방어 훈련 시스템입니다. 사기 생성 시스템이 아닙니다.**
+> "AI 가 사용자를 더 잘 속이도록 학습한다"가 **아니라**,
+> **"사용자의 약한 위험 신호를 더 자주, 강한 신호는 덜 훈련시키는 적응형 방어 훈련 커리큘럼"** 입니다.
+> 실제 사기 절차·가짜 결제 페이지·자격증명 수집·플랫폼 우회·실제 링크/계좌를 **생성하지 않습니다.**
+
+### 무엇을 하나
+- 거래 한 판이 끝날 때마다 **구조화된 학습 데이터**를 DB에 저장합니다 (원문 대화는 기본 저장 안 함).
+- 다음 세션이 시작될 때:
+  - 사용자가 **이미 숙달한** 위험 신호는 잠시 덜 등장시켜 **지루한 반복을 피하고**,
+  - **자주 놓치거나 약한** 위험 신호를 **우선 훈련**시키며,
+  - 페르소나 말투·페이싱·난이도를 **안전하게 변주**합니다.
+- 모든 숨은 적응 로직은 **서버 전용**입니다. 프론트는 **결과 화면 이전에 숨은 역할/수법/패턴 메타데이터를 절대 받지 않습니다.**
+
+### 핵심 모듈 (`app/ai/`)
+| 모듈 | 책임 |
+|------|------|
+| `pattern_taxonomy.py` | 안전한 훈련 패턴 분류표(가족/라벨/위험신호/안전대응/금지 디테일) + 내부 tactic↔패턴 매핑 |
+| `transcript_redactor.py` | 저장 전 전화/이메일/URL/계좌/주소/주민번호류/토큰 비식별화 + 안전 요약(digest) |
+| `adaptive_repository.py` | 적응형 테이블 **DB 접근 전담**(UUID/ISO-UTC/JSON TEXT) — 미래 PostgreSQL 이전 지점 |
+| `adaptive_memory.py` | 결과 기록 + 패턴별 **숙련도(mastery)·우선순위(priority)** 갱신 (규칙기반, 투명) |
+| `adaptive_selector.py` | 약점 우선 + 숙달/최근 회피 + 무작위성으로 미래 패턴·난이도 선택 |
+| `persona_variant.py` | 선택 패턴 기반 **안전 페르소나 변주** (template 기본 / local_claude·openai 선택, 검증·폴백) |
+| `adaptive_debug.py` | (선택) `ADAPTIVE_DEBUG_EXPLAIN=true` 일 때만 선택 사유 설명 |
+
+### 숙련도/우선순위 (투명하고 튜닝 쉬움)
+```
+mastery  = clamp(0.15 + 0.35·detection_rate + 0.35·resistance_rate − 0.25·failure_rate, 0, 1)
+priority = clamp((1 − mastery) + 0.15(최근 놓침) − 0.15(너무 최근 반복), 0, 1)
+```
+- mastery 0.0 = 자주 놓침/실패, 1.0 = 꾸준히 잘 막음.
+- **규칙기반 JudgeAgent 가 여전히 공식 정답의 권위입니다. LLM 은 정오를 정하지 않습니다.**
+  적응형 엔진은 *시나리오 선택*만 바꾸고 *정답 라벨*은 바꾸지 않습니다.
+
+### 안전·프라이버시 기본값
+- **원문 대화 미저장**: 기본은 구조화 메타데이터 + 짧은 요약(digest)만 저장합니다.
+  `STORE_REDACTED_TRANSCRIPTS=true` 일 때만, 그것도 **비식별화 후에만** 원문을 옵트인 저장합니다.
+- **다중 사용자**: 모든 적응형 데이터는 `user_id` 로 분리됩니다. 단일 로컬 계정에 의존하지 않습니다.
+- **실패해도 게임은 계속**: 적응형 엔진이 꺼져 있거나(`ADAPTIVE_SCENARIOS_ENABLED=false`)
+  어떤 예외가 나도 기존 정적/동적 페르소나 흐름으로 **그대로 진행**합니다.
+
+### 실력 분석 / 훈련 메모리 초기화
+- 📒 전적실 → **🎓 실력 분석**: 구매자/판매자 모드별 **강점·약점·다음 훈련 추천·패턴 숙련도**를 봅니다
+  (라벨/원칙만 노출, 내부 패턴 키는 비공개).
+- 결과 모달의 **"🎓 이번 훈련에서 다룬 위험 신호 / 비슷한 상황에서 적용할 원칙"** 도 라벨/대응만 보여줍니다.
+- **데모용 초기화**: 실력 분석 화면의 **♻️ 메모리 초기화** 또는 `POST /api/game/training-profile/reset`
+  → **현재 로그인 사용자의 적응형 메모리만** 지웁니다. 계정·거래 기록·인벤토리는 **그대로** 유지됩니다.
+  전역 삭제 엔드포인트는 제공하지 않습니다.
+
+### 로컬 데모 DB ↔ 미래 서버 DB
+- 지금은 **SQLite** 가 데모의 단일 진실원입니다. 단, **논리 스키마는 서버 이식을 염두에 두고** 설계했습니다:
+  - 기본키는 앱 코드에서 **UUID 문자열**로 생성 (SQLite autoincrement 비의존).
+  - 타임스탬프는 **ISO-8601 UTC 문자열**, JSON 페이로드는 **TEXT(JSON)** — PostgreSQL **JSONB 로 무손실 이전** 가능.
+  - 적응형 SQL 은 전부 `adaptive_repository.py`(=DB 계층)에만 둡니다. **서버 전환 시 이 계층만 교체**하면 됩니다.
+  - 핵심 비즈니스 로직은 SQLite 전용 동작에 의존하지 않습니다.
+- 마이그레이션은 **멱등**이며 기존 데이터를 **절대 지우지 않습니다**(앱 시작 때 빠진 테이블/컬럼만 보강).
+
+### 적응형 테이블
+`ai_session_outcomes` (완료 세션 요약) · `ai_user_training_memory` (패턴별 숙련도) ·
+`ai_persona_evolution_events` (선택 사유 — 디버그/분석) · `ai_pattern_catalog_snapshot` (분류표 스냅샷) ·
+`ai_session_adaptive_context` (세션별 선택/변주 — **서버 전용**).
 
 ---
 
@@ -199,8 +261,15 @@ safedeal-town/
 │     ├─ local_claude_adapter.py  로컬 CLI 어댑터
 │     ├─ roleplay.py      BaseRoleplayAgent / SellerAgent / BuyerAgent (판매글 인지)
 │     ├─ seller_agent.py  하위호환 재노출 shim
-│     ├─ judge_agent.py   심판/코치 (구매자 + 판매자 모드)
-│     └─ privacy.py       AI 출력 위생처리
+│     ├─ judge_agent.py   심판/코치 (구매자 + 판매자 모드) — 규칙기반 정답 권위
+│     ├─ privacy.py       AI 출력 위생처리
+│     ├─ pattern_taxonomy.py     안전 훈련 패턴 분류표 + tactic↔패턴 매핑  ★적응형
+│     ├─ transcript_redactor.py  저장 전 비식별화 + 안전 요약  ★적응형
+│     ├─ adaptive_repository.py  적응형 테이블 DB 접근 전담(서버 이식 지점)  ★적응형
+│     ├─ adaptive_memory.py      결과 기록 + 숙련도/우선순위 갱신  ★적응형
+│     ├─ adaptive_selector.py    약점 우선 패턴/난이도 선택  ★적응형
+│     ├─ persona_variant.py      안전 페르소나 변주(template 기본·검증·폴백)  ★적응형
+│     └─ adaptive_debug.py       (선택) 선택 사유 설명  ★적응형
 └─ static/
    ├─ index.html / css/style.css
    └─ js/  api · auth · avatar · sprites · world_map · spawn_manager · game ·
@@ -223,9 +292,11 @@ safedeal-town/
 | GET | `/api/game/spawns` · POST `/spawns/refresh` | 활성 스폰 목록 / 강제 새로고침 |
 | GET | `/api/game/inventory` · POST `/equip` · `/unequip` | 거래 가방 / 장착·해제 |
 | GET | `/api/game/rewards/catalog` | 아이템 도감 |
-| GET | `/api/game/habit-report` | 내 거래 습관 요약 |
+| GET | `/api/game/habit-report` | 내 거래 습관 요약 (기존 거래 기록 기반) |
+| GET | `/api/game/training-profile` | 🎓 실력 분석 — 모드별 강점/약점/추천/숙련도 (적응형, 사용자 안전 노출만) |
+| POST | `/api/game/training-profile/reset` | 현재 사용자 적응형 메모리만 초기화 (계정·거래기록 보존) |
 | POST | `/api/chat/card` | 대화 전 프로필/매물 카드 (정답지 미포함) |
-| POST | `/api/chat/start·message·flag·resolve` | 거래 대화 (모드 자동 판별) |
+| POST | `/api/chat/start·message·flag·resolve` | 거래 대화 (모드 자동 판별) — 결과에 적응형 학습 피드백 포함 |
 
 ---
 
@@ -255,6 +326,17 @@ safedeal-town/
 22. `MARKET_LISTING_PROVIDER=manual_import` 로 둔 샘플(JSON)의 **개인정보(이름/전화/이메일/주소/계좌/URL)가 제거**된다.
 23. 어떤 마켓 제공자도 **실서비스 스크래핑을 하지 않는다** (synthetic 폴백 보장).
 
+### 적응형 엔진 점검
+24. 구매자 모드 한 판을 마치면 `ai_session_outcomes` 에 행이 생기고 `ai_user_training_memory` 가 갱신된다.
+25. 여러 판을 더 하면 셀렉터가 **숙달·최근 패턴은 덜**, **약한 패턴은 더** 고른다.
+26. 판매자 모드 패턴은 구매자 모드와 **분리 저장**된다(`game_role` 구분).
+27. 📒 전적실 → **🎓 실력 분석** 에 모드별 강점/약점/추천/숙련도가 보인다.
+28. `ADAPTIVE_SCENARIOS_ENABLED=false` 면 게임이 **이전과 동일**하게 동작(적응형 기록 없음).
+29. `STORE_REDACTED_TRANSCRIPTS=true` 로 두고 채팅에 전화/이메일/URL 을 입력하면 저장된 대화가 **비식별화**된다.
+30. `AI_MODE=local_claude` 에서 CLI 실패 시에도 게임/적응형 기록이 **mock 폴백**으로 이어진다.
+31. 프론트는 **결과 화면 이전에 숨은 역할/수법/패턴 키를 받지 않는다**(개발자도구로도 안 보임).
+32. **♻️ 메모리 초기화** 또는 `POST /api/game/training-profile/reset` 후 적응형 데이터만 지워지고 **계정·거래 기록은 유지**된다.
+
 빠른 자동 점검(선택):
 ```bash
 python -m compileall app            # 파이썬 컴파일 점검
@@ -263,4 +345,10 @@ for f in static/js/*.js; do node --check "$f"; done   # JS 문법 점검
 # 수동 import 위생처리 빠른 확인 (샘플을 복사해서 테스트)
 cp runtime/imports/market_listings.example.json runtime/imports/market_listings.json
 MARKET_LISTING_PROVIDER=manual_import python -c "from app.market import fetch_seeds; print([s.product_name for s in fetch_seeds('random', 5)])"
+
+# 적응형 메모리만 초기화 (CLI, DB 직접) — runtime DB 를 백업해두고 실험할 때
+python -c "import sqlite3; from app.config import get_settings; \
+c=sqlite3.connect(get_settings().database_path); \
+[c.execute('DELETE FROM '+t) for t in ('ai_session_outcomes','ai_user_training_memory','ai_persona_evolution_events','ai_session_adaptive_context')]; \
+c.commit(); print('적응형 메모리 초기화 완료 (계정/거래기록 보존)')"
 ```

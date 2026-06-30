@@ -362,13 +362,21 @@ def build_profile_card(npc: dict, mode: str, spawn_id: str,
                 "trade_methods": ["직거래", "안전결제"],
                 "region_label": npc.get("location", ""),
             }
+    # 정답지 보호: 구매자 NPC 의 visual_theme 은 역할(빌런/막깎이 등)과 상관관계가 있어
+    # 카드(대화 전)로 내려보내면 정체가 새어나간다. 마을 스폰/대화시작과 동일하게
+    # 역할과 무관한 스폰별 테마로 중화한다. (판매자 테마는 item_category 기반이라 안전 → 그대로)
+    if npc.get("npc_kind") == "buyer":
+        from app import spawns as _spawns
+        visual_theme = _spawns._buyer_theme_for(str(spawn_id))
+    else:
+        visual_theme = npc.get("visual_theme")
     return {
         "mode": mode,
         "display_name": npc.get("name"),
         "npc_kind": npc.get("npc_kind"),
         "appearance": npc.get("persona", {}).get("appearance", ""),
         "difficulty": npc.get("difficulty"),
-        "visual_theme": npc.get("visual_theme"),
+        "visual_theme": visual_theme,
         "sprite_color": npc.get("sprite_color"),
         "listing": card_listing,
         "profile": profile,

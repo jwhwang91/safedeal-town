@@ -152,6 +152,12 @@
     habitReport() {
       return request("/api/game/habit-report");
     },
+    trainingProfile() {
+      return request("/api/game/training-profile");
+    },
+    resetTrainingProfile() {
+      return request("/api/game/training-profile/reset", { method: "POST" });
+    },
   };
 
   /* ---------- 채팅(거래) ---------- */

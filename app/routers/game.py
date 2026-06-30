@@ -14,6 +14,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.ai import adaptive_debug, adaptive_repository, adaptive_selector
+from app.ai import pattern_taxonomy as taxonomy
+from app.config import get_settings
 from app.database import db_dependency
 from app.deps import get_current_user
 from app.models import (
@@ -577,6 +580,117 @@ def habit_report(
         (user["id"],),
     ).fetchall()
     return _build_habit_report([dict(r) for r in rows])
+
+
+# ============================================================
+#  적응형 훈련 리포트 (적응형 메모리 기반 — 사용자 안전 노출만)
+# ============================================================
+def _recommend_next_training(prof: dict) -> str:
+    """약점 패턴의 안전한 대응을 다음 훈련 추천으로 (라벨/대응만, 내부 키 비노출)."""
+    weak = prof.get("weak_patterns") or []
+    if weak:
+        wk = min(weak, key=lambda pk: prof["mastery_by_pattern"][pk]["mastery"])
+        card = taxonomy.public_pattern_card(wk)
+        if card:
+            return f"‘{card['label']}’ 대응을 더 연습해 보세요. {card['safe_counter']}"
+    if prof.get("history_count", 0) == 0:
+        return "아직 훈련 기록이 없어요. 마을에서 첫 거래를 시작해 보세요!"
+    if prof.get("untrained_patterns"):
+        return "아직 마주치지 못한 위험 신호가 있어요. 다양한 상대와 거래해 보며 폭을 넓혀 보세요."
+    return "주요 위험 신호를 잘 다루고 있어요. 더 어려운 상대에 도전해 보세요."
+
+
+def _empty_role_profile() -> dict:
+    return {
+        "strengths": [], "weaknesses": [],
+        "recommended_next_training": "아직 훈련 데이터가 없어요.",
+        "recommended_difficulty": "same", "history_count": 0, "mastery_cards": [],
+    }
+
+
+def _training_profile_for_role(conn: sqlite3.Connection, user_id: int, role: str) -> dict:
+    """한 모드의 사용자 안전 리포트 (강점/약점/추천/숙련도 카드). 실패 시 빈 리포트로 안전 강등."""
+    try:
+        return _build_role_profile(conn, user_id, role)
+    except Exception:
+        return _empty_role_profile()
+
+
+def _build_role_profile(conn: sqlite3.Connection, user_id: int, role: str) -> dict:
+    prof = adaptive_selector.get_user_training_profile(conn, user_id, role)
+    cards = []
+    for c in prof["mastery_by_pattern"].values():
+        if c["times_seen"] <= 0:
+            continue
+        pct = c["mastery_pct"]
+        status = "강함" if pct >= 80 else ("약함" if pct < 40 else "보통")
+        cards.append({
+            "label": c["label"],
+            "family": c["pattern_family"],
+            "mastery_pct": pct,
+            "times_seen": c["times_seen"],
+            "status": status,
+        })
+    cards.sort(key=lambda x: x["mastery_pct"], reverse=True)
+    strengths = [c["label"] for c in cards if c["mastery_pct"] >= 80]
+    weaknesses = [c["label"] for c in cards if c["mastery_pct"] < 40]
+    return {
+        "strengths": strengths,
+        "weaknesses": weaknesses,
+        "recommended_next_training": _recommend_next_training(prof),
+        "recommended_difficulty": prof["recommended_difficulty"],
+        "history_count": prof["history_count"],
+        "mastery_cards": cards,
+    }
+
+
+@router.get("/training-profile")
+def training_profile(
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """실력 분석 / 훈련 리포트 — 구매자·판매자 모드별 강점/약점/추천.
+
+    사용자 안전 정보만 내려보낸다. 숨은 패턴 키·선택 로직은 노출하지 않는다.
+    """
+    settings = get_settings()
+    payload = {
+        "adaptive_enabled": settings.adaptive_scenarios_enabled,
+        "buyer": _training_profile_for_role(conn, user["id"], "buyer"),
+        "seller": _training_profile_for_role(conn, user["id"], "seller"),
+    }
+    # 디버그 설명은 ADAPTIVE_DEBUG_EXPLAIN=true 일 때만 (기본 false → 절대 노출 안 함)
+    if adaptive_debug.is_enabled():
+        try:
+            payload["_debug"] = {
+                "buyer": adaptive_debug.explain_user(conn, user["id"], "buyer"),
+                "seller": adaptive_debug.explain_user(conn, user["id"], "seller"),
+            }
+        except Exception:
+            pass
+    return payload
+
+
+@router.post("/training-profile/reset")
+def reset_training_profile(
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """현재 로그인 사용자의 적응형 훈련 메모리만 초기화한다 (데모/연습용).
+
+    계정·거래 기록·인벤토리는 건드리지 않는다. 전역 삭제 기능은 제공하지 않는다.
+    """
+    try:
+        counts = adaptive_repository.reset_user_adaptive(conn, user["id"])
+        conn.commit()
+    except Exception:
+        return {"reset": False, "deleted": {},
+                "message": "적응형 메모리 초기화 중 문제가 생겼어요. (계정·거래 기록은 그대로입니다)"}
+    return {
+        "reset": True,
+        "deleted": counts,
+        "message": "적응형 훈련 메모리를 초기화했어요. (계정·거래 기록은 그대로 유지됩니다)",
+    }
 
 
 @router.get("/rewards/catalog")

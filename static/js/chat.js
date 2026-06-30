@@ -462,6 +462,9 @@
       missed.forEach((f) => flagsBox.appendChild(makeFlagLine("missed", "✘", f)));
     }
 
+    // 적응형 학습 피드백 (결과 이후에만 — 라벨/원칙만)
+    renderLearning(r.learning);
+
     // 대화 다시 보기
     const tr = document.getElementById("result-transcript");
     tr.innerHTML = "";
@@ -499,6 +502,39 @@
     }
 
     resultOverlay.classList.remove("hidden");
+  }
+
+  /* ---------- 적응형 학습 피드백 (결과 모달) ---------- */
+  function renderLearning(learning) {
+    const sec = document.getElementById("learning-section");
+    const box = document.getElementById("result-learning");
+    const next = document.getElementById("learning-next");
+    box.innerHTML = "";
+    next.classList.add("hidden");
+    next.textContent = "";
+    const signals = (learning && learning.trained_signals) || [];
+    if (!learning || signals.length === 0) {
+      sec.classList.add("hidden");
+      return;
+    }
+    signals.forEach((s) => {
+      const row = document.createElement("div");
+      row.className = "learning-line " + (s.caught ? "caught" : "missed");
+      row.innerHTML =
+        '<div class="learning-head">' +
+        '<span class="learning-ic">' + (s.caught ? "✅" : "⚠️") + "</span>" +
+        '<span class="learning-label">' + escapeHtml(s.label) + "</span>" +
+        '<span class="learning-tag">' + (s.caught ? "잘 잡음" : "놓침") + "</span>" +
+        "</div>" +
+        (s.red_flag ? '<div class="learning-rf">위험 신호 — ' + escapeHtml(s.red_flag) + "</div>" : "") +
+        (s.safe_counter ? '<div class="learning-sc">💡 ' + escapeHtml(s.safe_counter) + "</div>" : "");
+      box.appendChild(row);
+    });
+    if (learning.next_principle) {
+      next.textContent = "🧭 비슷한 상황에서 적용할 원칙 — " + learning.next_principle;
+      next.classList.remove("hidden");
+    }
+    sec.classList.remove("hidden");
   }
 
   const REWARD_ICON = {
@@ -628,6 +664,112 @@
   }
   function closeRecord() { recordOverlay.classList.add("hidden"); }
 
+  /* ---------- 실력 분석 / 훈련 리포트 (적응형) ---------- */
+  const trainingOverlay = document.getElementById("training-overlay");
+  const trainingBody = document.getElementById("training-body");
+
+  async function openTraining() {
+    try {
+      const data = await API.game.trainingProfile();
+      renderTraining(data);
+      trainingOverlay.classList.remove("hidden");
+    } catch (err) { SafeDeal.toast(err.message); }
+  }
+
+  function trainingListCard(title, icon, lines, cls) {
+    const box = document.createElement("div");
+    box.className = "habit-card " + (cls || "");
+    box.innerHTML = "<h4>" + icon + " " + escapeHtml(title) + "</h4>";
+    const ul = document.createElement("ul");
+    if (!lines || !lines.length) {
+      const li = document.createElement("li");
+      li.className = "habit-muted";
+      li.textContent = "아직 없어요.";
+      ul.appendChild(li);
+    } else {
+      lines.forEach((t) => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        ul.appendChild(li);
+      });
+    }
+    box.appendChild(ul);
+    return box;
+  }
+
+  function trainingRoleBlock(title, icon, role) {
+    const wrap = document.createElement("div");
+    wrap.className = "training-role";
+    const h = document.createElement("h3");
+    h.textContent = icon + " " + title;
+    wrap.appendChild(h);
+
+    const cards = (role && role.mastery_cards) || [];
+    if (!cards.length) {
+      const muted = document.createElement("p");
+      muted.className = "habit-muted";
+      muted.textContent = (role && role.history_count)
+        ? "이 모드의 위험 신호 훈련 기록이 아직 적어요."
+        : "아직 이 모드의 거래 기록이 없어요. 마을에서 거래해 보면 분석이 쌓여요!";
+      wrap.appendChild(muted);
+    }
+    wrap.appendChild(trainingListCard("잘 잡아낸 위험 신호", "💪", role.strengths, "good"));
+    wrap.appendChild(trainingListCard("자주 놓친 위험 신호", "🚩", role.weaknesses, "weak"));
+
+    const rec = document.createElement("div");
+    rec.className = "habit-card next";
+    rec.innerHTML = "<h4>🎯 다음 훈련 추천</h4><p>" +
+      escapeHtml(role.recommended_next_training || "") + "</p>";
+    wrap.appendChild(rec);
+
+    if (cards.length) {
+      const bars = document.createElement("div");
+      bars.className = "training-bars";
+      cards.forEach((c) => {
+        const cls = c.mastery_pct >= 80 ? "strong" : (c.mastery_pct < 40 ? "weakbar" : "mid");
+        const row = document.createElement("div");
+        row.className = "training-bar-row";
+        row.innerHTML =
+          '<span class="training-bar-label">' + escapeHtml(c.label) + "</span>" +
+          '<span class="training-bar-track"><span class="training-bar-fill ' + cls +
+          '" style="width:' + c.mastery_pct + '%"></span></span>' +
+          '<span class="training-bar-pct">' + c.mastery_pct + "%</span>";
+        bars.appendChild(row);
+      });
+      wrap.appendChild(bars);
+    }
+    return wrap;
+  }
+
+  function renderTraining(data) {
+    trainingBody.innerHTML = "";
+    if (data && data.adaptive_enabled === false) {
+      const warn = document.createElement("p");
+      warn.className = "habit-muted";
+      warn.textContent =
+        "적응형 훈련 엔진이 꺼져 있어요. (ADAPTIVE_SCENARIOS_ENABLED=false) — 켜면 분석이 쌓여요.";
+      trainingBody.appendChild(warn);
+    }
+    [["구매자 모드", "🛒", data.buyer], ["판매자 모드", "🏪", data.seller]].forEach(
+      ([t, ic, role]) => {
+        if (role) trainingBody.appendChild(trainingRoleBlock(t, ic, role));
+      }
+    );
+  }
+
+  async function resetTraining() {
+    if (!window.confirm("이 계정의 적응형 훈련 메모리만 초기화할까요?\n(거래 기록·계정·인벤토리는 그대로 유지돼요)")) {
+      return;
+    }
+    try {
+      await API.game.resetTrainingProfile();
+      SafeDeal.toast("훈련 메모리를 초기화했어요.");
+      openTraining();
+    } catch (err) { SafeDeal.toast(err.message); }
+  }
+
+  function closeTraining() { trainingOverlay.classList.add("hidden"); }
+
   /* ---------- 이벤트 ---------- */
   elSend.addEventListener("click", sendMessage);
   elInput.addEventListener("keydown", (e) => {
@@ -639,6 +781,17 @@
   elClose.addEventListener("click", closeChat);
   document.getElementById("result-close").addEventListener("click", closeResult);
   document.getElementById("record-close").addEventListener("click", closeRecord);
+
+  // 실력 분석 / 훈련 리포트
+  document.getElementById("btn-training").addEventListener("click", openTraining);
+  document.getElementById("training-close").addEventListener("click", closeTraining);
+  document.getElementById("btn-training-reset").addEventListener("click", resetTraining);
+  trainingOverlay.addEventListener("click", (e) => {
+    if (e.target === trainingOverlay) closeTraining();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") trainingOverlay.classList.add("hidden");
+  });
 
   // 프로필/매물 카드
   document.getElementById("card-start").addEventListener("click", startFromCard);
@@ -655,5 +808,5 @@
     }
   });
 
-  global.SafeDealChat = { openCard, openChat, openRecord, closeChat };
+  global.SafeDealChat = { openCard, openChat, openRecord, openTraining, closeChat };
 })(window);

@@ -741,3 +741,46 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 .habit-card ul { margin: 0; padding-left: 1.1rem; }
 .habit-card li { font-size: .85rem; line-height: 1.55; }
 .habit-muted { color: var(--ink-soft); list-style: none; margin-left: -1.1rem; }
+
+/* ============================================================
+   적응형 학습 피드백 (결과 모달) + 실력 분석 리포트
+   ============================================================ */
+#learning-section .learning-line {
+  background: #fff; border: 2px solid #e3d6ba; border-left-width: 5px;
+  border-radius: 12px; padding: .55rem .75rem; margin-bottom: .5rem;
+}
+.learning-line.caught { border-left-color: var(--sage); }
+.learning-line.missed { border-left-color: var(--danger-soft); }
+.learning-head { display: flex; align-items: center; gap: .4rem; }
+.learning-ic { font-size: 1rem; }
+.learning-label { font-weight: 700; color: var(--ink); }
+.learning-tag {
+  margin-left: auto; font-size: .72rem; padding: .1rem .5rem; border-radius: 999px;
+  background: var(--cream); color: var(--ink-soft);
+}
+.learning-line.caught .learning-tag { background: #e7f0e2; color: var(--sage-dark); }
+.learning-line.missed .learning-tag { background: #f7e3e1; color: var(--danger); }
+.learning-rf { font-size: .82rem; color: var(--ink-soft); margin-top: .25rem; }
+.learning-sc { font-size: .85rem; color: var(--ink); margin-top: .2rem; line-height: 1.5; }
+.learning-next {
+  margin-top: .4rem; font-size: .86rem; line-height: 1.55; color: var(--ink);
+  background: #fcf3df; border: 1px dashed var(--gold); border-radius: 10px; padding: .5rem .7rem;
+}
+
+.training-body { padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: 1.1rem; }
+.training-role { display: flex; flex-direction: column; gap: .55rem; }
+.training-role > h3 {
+  font-size: 1.05rem; color: var(--terracotta-dark);
+  border-bottom: 2px solid #e3d6ba; padding-bottom: .3rem;
+}
+.training-bars { display: flex; flex-direction: column; gap: .35rem; margin-top: .2rem; }
+.training-bar-row { display: flex; align-items: center; gap: .5rem; }
+.training-bar-label { flex: 0 0 38%; font-size: .82rem; color: var(--ink); }
+.training-bar-track {
+  flex: 1; height: 12px; background: #ece0c6; border-radius: 999px; overflow: hidden;
+}
+.training-bar-fill { display: block; height: 100%; border-radius: 999px; }
+.training-bar-fill.strong { background: var(--sage); }
+.training-bar-fill.mid { background: var(--gold); }
+.training-bar-fill.weakbar { background: var(--danger-soft); }
+.training-bar-pct { flex: 0 0 2.6rem; text-align: right; font-size: .8rem; color: var(--ink-soft); }

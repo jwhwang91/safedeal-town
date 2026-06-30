@@ -70,6 +70,14 @@ class Settings:
     market_trend_cache_path: Path
     allow_experimental_market_providers: bool
 
+    # 적응형 시나리오 엔진 (방어 훈련 커리큘럼 — 사기 생성 아님)
+    adaptive_scenarios_enabled: bool
+    store_redacted_transcripts: bool
+    persona_evolution_provider: str       # "template" | "local_claude" | "openai"
+    adaptive_min_history_for_personalization: int
+    adaptive_recent_avoid_window_days: int
+    adaptive_debug_explain: bool
+
     # 서버
     host: str
     port: int
@@ -110,6 +118,17 @@ class Settings:
             "medium": self.claude_model_medium,
             "easy": self.claude_model_easy,
         }.get((difficulty or "medium").lower(), self.claude_model_medium)
+
+    @property
+    def adaptive_provider_effective(self) -> str:
+        """페르소나 진화 제공자를 정규화한다.
+
+        허용값(template/local_claude/openai) 외에는 안전 기본값 template 로 떨어뜨린다.
+        local_claude/openai 라도 실제 생성에 실패하면 호출부가 template 로 폴백하므로
+        게임은 절대 멈추지 않는다.
+        """
+        p = (self.persona_evolution_provider or "template").strip().lower()
+        return p if p in ("template", "local_claude", "openai") else "template"
 
     @property
     def map_provider_effective(self) -> str:
@@ -163,6 +182,16 @@ def get_settings() -> Settings:
         allow_experimental_market_providers=_get_bool(
             "ALLOW_EXPERIMENTAL_MARKET_PROVIDERS", False
         ),
+        adaptive_scenarios_enabled=_get_bool("ADAPTIVE_SCENARIOS_ENABLED", True),
+        store_redacted_transcripts=_get_bool("STORE_REDACTED_TRANSCRIPTS", False),
+        persona_evolution_provider=_get("PERSONA_EVOLUTION_PROVIDER", "template"),
+        adaptive_min_history_for_personalization=_get_int(
+            "ADAPTIVE_MIN_HISTORY_FOR_PERSONALIZATION", 3
+        ),
+        adaptive_recent_avoid_window_days=_get_int(
+            "ADAPTIVE_RECENT_AVOID_WINDOW_DAYS", 7
+        ),
+        adaptive_debug_explain=_get_bool("ADAPTIVE_DEBUG_EXPLAIN", False),
         host=_get("HOST", "0.0.0.0"),
         port=_get_int("PORT", 8000),
         jwt_secret=_get("JWT_SECRET", "dev-insecure-secret-change-me"),
