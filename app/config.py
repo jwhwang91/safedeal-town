@@ -78,6 +78,24 @@ class Settings:
     adaptive_recent_avoid_window_days: int
     adaptive_debug_explain: bool
 
+    # 동적 페르소나 생성 (스폰 시점에 local_claude/openai 로 페르소나 JSON 을 생성)
+    # 기존 적응형 변주(persona_evolution_provider)와는 별개의 레이어다.
+    #   - template     : 내장 템플릿만 사용 (기본값, 항상 안전/오프라인)
+    #   - local_claude : 로컬 CLI 로 매번 다른 페르소나 생성 (실패 시 template 폴백)
+    #   - openai       : OpenAI 호환 API 로 생성 (실패 시 template 폴백)
+    dynamic_persona_provider: str
+    dynamic_persona_cache: bool
+    dynamic_persona_cache_ttl_minutes: int
+
+    # 상품 카탈로그 신선도: 모델 연식 생성의 상한 기준 연도 (없으면 서버 날짜에서 도출)
+    current_market_year: int
+
+    # 판매자 모드 인바운드 문의 페이싱 (구매자 NPC 가 하나둘 문의를 보낸다)
+    seller_inquiry_min_delay_seconds: int
+    seller_inquiry_max_delay_seconds: int
+    seller_max_pending_inquiries: int
+    seller_max_approaching_buyers: int
+
     # 서버
     host: str
     port: int
@@ -128,6 +146,17 @@ class Settings:
         게임은 절대 멈추지 않는다.
         """
         p = (self.persona_evolution_provider or "template").strip().lower()
+        return p if p in ("template", "local_claude", "openai") else "template"
+
+    @property
+    def dynamic_persona_provider_effective(self) -> str:
+        """스폰 시점 동적 페르소나 제공자를 정규화한다.
+
+        허용값(template/local_claude/openai) 외에는 안전 기본값 template 로 떨어뜨린다.
+        local_claude/openai 라도 실제 생성/검증에 실패하면 호출부가 template 로 폴백하므로
+        게임은 절대 멈추지 않는다. (적응형 persona_evolution_provider 와는 독립적인 설정.)
+        """
+        p = (self.dynamic_persona_provider or "template").strip().lower()
         return p if p in ("template", "local_claude", "openai") else "template"
 
     @property
@@ -192,6 +221,21 @@ def get_settings() -> Settings:
             "ADAPTIVE_RECENT_AVOID_WINDOW_DAYS", 7
         ),
         adaptive_debug_explain=_get_bool("ADAPTIVE_DEBUG_EXPLAIN", False),
+        dynamic_persona_provider=_get("DYNAMIC_PERSONA_PROVIDER", "template"),
+        dynamic_persona_cache=_get_bool("DYNAMIC_PERSONA_CACHE", True),
+        dynamic_persona_cache_ttl_minutes=_get_int(
+            "DYNAMIC_PERSONA_CACHE_TTL_MINUTES", 120
+        ),
+        # 0/미설정이면 호출부가 서버의 현재 연도를 쓴다 (날짜 인지 카탈로그).
+        current_market_year=_get_int("CURRENT_MARKET_YEAR", 0),
+        seller_inquiry_min_delay_seconds=_get_int(
+            "SELLER_INQUIRY_MIN_DELAY_SECONDS", 15
+        ),
+        seller_inquiry_max_delay_seconds=_get_int(
+            "SELLER_INQUIRY_MAX_DELAY_SECONDS", 45
+        ),
+        seller_max_pending_inquiries=_get_int("SELLER_MAX_PENDING_INQUIRIES", 3),
+        seller_max_approaching_buyers=_get_int("SELLER_MAX_APPROACHING_BUYERS", 2),
         host=_get("HOST", "0.0.0.0"),
         port=_get_int("PORT", 8000),
         jwt_secret=_get("JWT_SECRET", "dev-insecure-secret-change-me"),

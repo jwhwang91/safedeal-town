@@ -129,6 +129,31 @@ def run_migrations(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # ---- 판매자 모드 인바운드 문의 (스키마는 schema.sql 과 byte-for-byte 동일하게 유지) ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS seller_inquiries (
+            id              TEXT PRIMARY KEY,
+            user_id         INTEGER NOT NULL,
+            spawn_id        TEXT NOT NULL,
+            npc_id          TEXT NOT NULL,
+            listing_title   TEXT,
+            inquiry_preview TEXT,
+            status          TEXT NOT NULL DEFAULT 'waiting',
+            session_id      TEXT,
+            created_at      TEXT NOT NULL,
+            expires_at      TEXT NOT NULL,
+            FOREIGN KEY (user_id)  REFERENCES users(id)         ON DELETE CASCADE,
+            FOREIGN KEY (spawn_id) REFERENCES active_spawns(id) ON DELETE CASCADE,
+            FOREIGN KEY (npc_id)   REFERENCES npcs(id)          ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_seller_inq_user "
+        "ON seller_inquiries(user_id, status)"
+    )
+
     # ---- 인벤토리: 아이템 정의 / 보유 / 장착 ----
     conn.execute(
         """

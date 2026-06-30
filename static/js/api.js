@@ -131,6 +131,17 @@
     refreshSpawns() {
       return request("/api/game/spawns/refresh", { method: "POST" });
     },
+    // 판매자 모드: 현재 대기 중인 인바운드 문의 목록
+    getInquiries() {
+      return request("/api/game/inquiries");
+    },
+    // 판매자 모드: 문의 수락 → 거래(채팅) 시작 (chat.start 와 동일 응답)
+    acceptInquiry(inquiryId) {
+      return request(
+        "/api/game/inquiries/" + encodeURIComponent(inquiryId) + "/accept",
+        { method: "POST" }
+      );
+    },
     profile() {
       return request("/api/game/profile");
     },
@@ -169,10 +180,13 @@
         body: { spawn_instance_id: spawnInstanceId || null },
       });
     },
-    start(spawnInstanceId) {
+    start(spawnInstanceId, inquiryId) {
       return request("/api/chat/start", {
         method: "POST",
-        body: { spawn_instance_id: spawnInstanceId || null },
+        body: {
+          spawn_instance_id: spawnInstanceId || null,
+          inquiry_id: inquiryId || null,
+        },
       });
     },
     message(sessionId, message) {

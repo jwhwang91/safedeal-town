@@ -131,8 +131,10 @@ class SpawnResponse(BaseModel):
 class StartChatRequest(BaseModel):
     # 클라이언트는 보통 spawn_instance_id 만 보낸다 → 서버가 npc_id 로 매핑(정답지 보호).
     # npc_id 는 디버그/내부용 폴백으로만 허용한다.
+    # 판매자 모드 인바운드 문의에서 시작할 땐 inquiry_id 만 보낸다 → 서버가 스폰으로 매핑.
     spawn_instance_id: str | None = None
     npc_id: str | None = None
+    inquiry_id: str | None = None
 
 
 class SendMessageRequest(BaseModel):

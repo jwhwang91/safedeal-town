@@ -53,9 +53,12 @@ def _approach_params(spawn_id: str) -> tuple[float, int | None]:
 
 
 def _augment_buyer_approach(pub: dict, ctx: dict) -> dict:
-    """판매자 모드 구매자 NPC 스폰에 '접근 행동' 메타를 붙인다 (역할 비노출).
+    """판매자 모드 구매자 NPC 스폰에 '접근/문의' 메타를 붙인다 (역할 비노출).
 
-    프론트가 이 값으로 roaming→interested→approaching→waiting 을 연출한다.
+    approach_state 는 서버가 권위적으로 정한다:
+      - 백엔드가 이 스폰에 '대기 문의(inquiry)'를 만들었으면 → "waiting" (+ inquiry_id/expires_at)
+      - 아니면 → "roaming" (떠돌기만; 프론트는 다가오는 연출을 하지 않는다)
+    이렇게 해야 max_pending/페이싱이 그대로 지켜지고, 한꺼번에 몰리지 않는다.
     inquiry_preview 는 플레이어 매물명을 가리키되 구매자 유형은 절대 드러내지 않는 중립 문구.
     """
     from app.ai import persona_factory
@@ -65,10 +68,22 @@ def _augment_buyer_approach(pub: dict, ctx: dict) -> dict:
     pub["target"] = "player"
     pub["interest_level"] = interest
     pub["approach_delay_seconds"] = delay
-    pub["approach_state"] = "roaming"
-    pub["inquiry_preview"] = persona_factory.neutral_inquiry_preview(
-        ctx.get("seller_item"), sid
-    )
+
+    inq = (ctx.get("inquiries_by_spawn") or {}).get(sid)
+    if inq:
+        # 서버가 만든 실제 문의 — 다가와서 문의 카드를 남긴 상태.
+        pub["approach_state"] = "waiting"
+        pub["inquiry_id"] = inq["id"]
+        pub["inquiry_preview"] = inq["inquiry_preview"]
+        pub["inquiry_created_at"] = inq["created_at"]
+        pub["expires_at"] = inq["expires_at"]
+        pub["inquiry_remaining_seconds"] = inq["remaining_seconds"]
+    else:
+        pub["approach_state"] = "roaming"
+        pub["inquiry_id"] = None
+        pub["inquiry_preview"] = persona_factory.neutral_inquiry_preview(
+            ctx.get("seller_item"), sid
+        )
     return pub
 
 
@@ -352,10 +367,19 @@ def _public_context(conn: sqlite3.Connection, user: sqlite3.Row) -> dict:
     except Exception:
         prefs = {}
     seller_listing = prefs.get("seller_listing") or {}
+    # 판매자 모드: 현재 대기 중인 인바운드 문의를 spawn_id 로 매핑해 둔다(서버 권위 approach_state).
+    inquiries_by_spawn: dict = {}
+    if game_role == "seller":
+        try:
+            from app import inquiries as inquiry_mgr
+            inquiries_by_spawn = inquiry_mgr.waiting_by_spawn(conn, user["id"])
+        except Exception:
+            inquiries_by_spawn = {}
     return {
         "game_role": game_role,
         "buyer_category": prefs.get("buyer_category", "random"),
         "seller_item": seller_listing.get("product_name") or seller_listing.get("item_name"),
+        "inquiries_by_spawn": inquiries_by_spawn,
     }
 
 
@@ -364,6 +388,13 @@ def refresh_and_list(conn: sqlite3.Connection, user: sqlite3.Row, profile: dict)
     now = _now()
     _expire_old(conn, user["id"], now)
     _fill(conn, user, profile, now)
+    # 판매자 모드: 인바운드 문의 수명/페이싱 갱신 (실패해도 게임은 계속).
+    if (user["game_role"] or "buyer") == "seller":
+        try:
+            from app import inquiries as inquiry_mgr
+            inquiry_mgr.refresh_for_user(conn, user, now)
+        except Exception:
+            pass
     ctx = _public_context(conn, user)
     out = []
     for row in _active_rows(conn, user["id"]):

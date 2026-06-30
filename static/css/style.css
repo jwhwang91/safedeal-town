@@ -206,6 +206,53 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 #inquiry-alert:hover { filter: brightness(1.07); }
 @keyframes bob-side { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-4px);} }
 
+/* 판매자 모드: 인바운드 문의 카드 (구매자가 내 판매글에 남긴 문의) */
+#inquiry-cards {
+  position: absolute; top: 96px; right: 14px;
+  display: flex; flex-direction: column; gap: .5rem;
+  width: 230px; max-width: 60%; z-index: 5;
+}
+#inquiry-cards.hidden { display: none; }
+.inquiry-card {
+  background: var(--card); border: 2px solid var(--ink); border-radius: 12px;
+  box-shadow: var(--shadow-sm); padding: .55rem .65rem;
+  animation: card-pop .25s ease-out;
+}
+@keyframes card-pop { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+.inquiry-card-name {
+  font-family: 'Jua', sans-serif; font-size: .85rem; color: var(--terracotta-dark);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.inquiry-card-preview {
+  font-size: .78rem; color: var(--ink); margin: .25rem 0 .4rem;
+  line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.inquiry-card-decay { height: 4px; background: #eadfc6; border-radius: 3px; overflow: hidden; }
+.inquiry-card-decay-fill {
+  height: 100%; width: 100%; background: var(--gold);
+  transition: width .9s linear;
+}
+.inquiry-card-reply {
+  margin-top: .45rem; width: 100%; cursor: pointer;
+  font-family: 'Jua', sans-serif; font-size: .8rem;
+  background: var(--terracotta); color: #fff; border: 2px solid var(--ink);
+  border-radius: 9px; padding: .3rem;
+}
+.inquiry-card-reply:hover { background: var(--terracotta-dark); }
+/* 문의 도착 전 '구매자들이 둘러보는 중…' 안내 (카드 영역이 비어 보이지 않게) */
+.inquiry-browsing {
+  display: flex; align-items: center; gap: .4rem;
+  font-size: .74rem; color: var(--ink-soft);
+  background: var(--card); border: 1px dashed var(--ink-soft); border-radius: 10px;
+  padding: .4rem .55rem; opacity: .9;
+}
+.inquiry-browsing-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--gold);
+  animation: browse-pulse 1.3s ease-in-out infinite;
+}
+@keyframes browse-pulse { 0%,100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.1); } }
+
 /* 동네 이름 (IP/위치 기반) — 좌상단 팻말 */
 #town-name {
   position: absolute; top: 14px; left: 14px;
@@ -382,6 +429,21 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
   margin-top: .45rem; font-size: .75rem; color: var(--ink-soft);
 }
 .chat-tip { color: var(--gold); }
+
+/* ---------- 구매자 모드: 빈 채팅 안내 + 빠른 문의 칩 ---------- */
+/* 판매자 NPC 는 먼저 말하지 않는다 → 플레이어가 첫 문의를 보내도록 안내 */
+.chat-empty {
+  margin: auto; text-align: center; color: var(--ink-soft);
+  display: flex; flex-direction: column; align-items: center; gap: .25rem;
+  padding: 1.5rem 1rem;
+}
+.chat-empty-emoji { font-size: 1.8rem; opacity: .8; }
+.chat-empty p { font-size: .92rem; color: var(--ink); }
+.chat-empty-hint { font-size: .76rem; color: var(--ink-soft); }
+.chat-quick {
+  display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .5rem;
+}
+.chat-quick.hidden { display: none; }
 
 /* ---------- 거래 도구: 답변칩 + 체크리스트 ---------- */
 .chat-tools { margin-top: .5rem; }

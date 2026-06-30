@@ -43,11 +43,14 @@
         walkPhase: old ? old.walkPhase : 0,
         moving: false,
         repathAt: old ? old.repathAt : 0,
-        // 판매자 모드 '접근 행동' 상태 (클라이언트가 연출; 서버 값으로 초기화).
-        // approach_state(server) → roaming|interested|approaching|waiting 로 진화한다.
-        approachState: old ? old.approachState : (s.approach_state || "roaming"),
-        // 알림('구매자가 문의를 보냈습니다')을 이미 띄웠는지 (한 번만).
+        // 판매자 모드 접근 애니메이션 상태 (연출용). 실제 '문의 여부'는 서버 inquiry_id 가 권위.
+        approachState: old ? old.approachState : "roaming",
+        // 알림('구매자가 문의를 보냈습니다')을 이미 띄웠는지 (문의 1건당 한 번).
         inquiryNotified: old ? old.inquiryNotified : false,
+        // 문의 카드 데드라인 — 매 폴링마다 서버 잔여시간으로 재동기화(드리프트 방지).
+        inquiryExpiresAt: (s.inquiry_id && s.inquiry_remaining_seconds != null)
+          ? now + s.inquiry_remaining_seconds * 1000
+          : null,
       });
     });
   }

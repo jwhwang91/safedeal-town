@@ -44,6 +44,17 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 # 한 판 최대 플레이어 발화 수 (대화가 무한정 길어지지 않게)
 _MAX_PLAYER_TURNS = 14
 
+# 구매자 모드 빠른 문의 칩.
+# 실제 중고앱처럼 '구매자(플레이어)가 먼저' 판매자에게 문의를 보낸다.
+# 판매자 NPC 는 절대 먼저 말하지 않는다 (정답지 노출 없는 중립 문구).
+_BUYER_SUGGESTED_MESSAGES = [
+    "아직 판매 중인가요?",
+    "직거래 가능할까요?",
+    "상태 사진 더 볼 수 있을까요?",
+    "네고 가능할까요?",
+    "구성품은 전부 있나요?",
+]
+
 _BUYER_DECISIONS = {"buy", "walk_away", "report"}
 _SELLER_DECISIONS = {
     "complete_sale", "refuse_refund", "accept_refund",
@@ -240,8 +251,26 @@ def _resolve_spawn(conn: sqlite3.Connection, user_id: int, body: StartChatReques
     """
     클라이언트는 spawn_instance_id 만 보낸다 → 서버가 (npc_id, dynamic_json) 을 찾는다.
     (role 을 노출하는 npc_id 를 클라이언트가 알 필요가 없도록 분리.)
+    판매자 모드 인바운드 문의에서 시작하면 inquiry_id 만 온다 → 서버가 스폰으로 매핑한다.
     npc_id 직접 지정은 디버그용 폴백.
     """
+    # 인바운드 문의 → 스폰 매핑 (본인 소유 + 대기 중 + 스폰 생존일 때만). 정답지 보호 유지.
+    if body.inquiry_id:
+        from app import inquiries as inquiry_mgr
+        spawn_id = inquiry_mgr.spawn_id_for(conn, user_id, body.inquiry_id)
+        if spawn_id:
+            row = conn.execute(
+                "SELECT npc_id, dynamic_json FROM active_spawns WHERE id = ? AND user_id = ?",
+                (spawn_id, user_id),
+            ).fetchone()
+            if row:
+                # 이후 engage/세션기록이 같은 스폰을 가리키도록 채워준다.
+                body.spawn_instance_id = spawn_id
+                return row["npc_id"], row["dynamic_json"]
+        raise HTTPException(
+            status_code=404,
+            detail="이미 떠났거나 만료된 문의예요. 다른 문의를 골라 주세요.",
+        )
     if body.spawn_instance_id:
         row = conn.execute(
             "SELECT npc_id, dynamic_json FROM active_spawns WHERE id = ? AND user_id = ?",
@@ -360,6 +389,18 @@ def start_chat(
     )
 
     session_id = str(uuid.uuid4())
+    # 인바운드 문의에서 시작했다면, 거래 세션을 만들기 전에 그 문의를 '원자적으로 선점'한다.
+    # 조건부 UPDATE 가 1행을 못 바꾸면(동시 수락·이미 응대·만료) 세션을 만들지 않고 409 로 거절한다.
+    # 아직 아무것도 커밋하지 않았으므로 conn 종료 시 전부 롤백 → 같은 문의로 두 거래 세션이
+    # 생겨 보상이 중복되는 것(리워드 파밍)을 막는다. (수락 카드는 화면/지도 양쪽에서 누를 수 있어
+    # 더블클릭/동시요청이 실제로 발생할 수 있다.)
+    if body.inquiry_id:
+        from app import inquiries as inquiry_mgr
+        if not inquiry_mgr.claim_inquiry(conn, user["id"], body.inquiry_id, session_id):
+            raise HTTPException(
+                status_code=409,
+                detail="방금 다른 곳에서 응대를 시작했거나 만료된 문의예요. 다른 문의를 골라 주세요.",
+            )
     conn.execute(
         "INSERT INTO trade_sessions (id, user_id, npc_id, status, game_role, "
         "counterparty_kind, scenario_type, spawn_instance_id, session_npc_json, "
@@ -373,19 +414,30 @@ def start_chat(
     # 말 건 스폰은 활성 풀에서 빼서 거래 도중 사라지지 않게 한다
     spawn_mgr.engage(conn, user["id"], body.spawn_instance_id)
 
-    agent = _make_agent(npc, user, seller_listing)
-    opening = agent.opening()
-    conn.execute(
-        "INSERT INTO chat_messages (session_id, turn_index, speaker, content, tactic, created_at) "
-        "VALUES (?, 0, 'npc', ?, ?, ?)",
-        (session_id, opening["message"], opening["tactic"], _now()),
-    )
-    conn.commit()
-
-    opening_row = conn.execute(
-        "SELECT id FROM chat_messages WHERE session_id = ? AND turn_index = 0",
-        (session_id,),
-    ).fetchone()
+    # ── 첫 메시지 정책 ──────────────────────────────────────────────
+    # 구매자 모드(상대=판매자 NPC): 실제 중고앱처럼 '구매자(플레이어)가 먼저' 문의한다.
+    #   → 판매자 NPC 오프닝을 자동 삽입하지 않는다. requires_player_first_message=true.
+    # 판매자 모드(상대=구매자 NPC): 구매자가 내 판매글을 보고 '먼저 문의를 남긴' 상황이므로
+    #   → 기존처럼 구매자 NPC 의 첫 문의(오프닝)를 보여준다.
+    requires_player_first = (mode == "buyer")
+    opening_payload = None
+    if not requires_player_first:
+        agent = _make_agent(npc, user, seller_listing)
+        opening = agent.opening()
+        conn.execute(
+            "INSERT INTO chat_messages (session_id, turn_index, speaker, content, tactic, created_at) "
+            "VALUES (?, 0, 'npc', ?, ?, ?)",
+            (session_id, opening["message"], opening["tactic"], _now()),
+        )
+        conn.commit()
+        opening_row = conn.execute(
+            "SELECT id FROM chat_messages WHERE session_id = ? AND turn_index = 0",
+            (session_id,),
+        ).fetchone()
+        opening_payload = {"message_id": opening_row["id"], "content": opening["message"]}
+    else:
+        # NPC 오프닝 없이 세션만 만들고 커밋한다 (플레이어 첫 메시지 대기).
+        conn.commit()
 
     # 매물 표시: 판매자 모드면 '내 판매글', 구매자 모드면 NPC 매물
     if mode == "seller":
@@ -412,6 +464,8 @@ def start_chat(
     return {
         "session_id": session_id,
         "mode": mode,
+        # 구매자 모드면 판매자 NPC 가 먼저 말하지 않는다 → 플레이어가 첫 문의를 보내야 함.
+        "requires_player_first_message": requires_player_first,
         "npc": {
             "name": npc["name"],
             "npc_kind": npc["npc_kind"],
@@ -426,7 +480,9 @@ def start_chat(
             # 내려보내지 않는다 (프론트는 쓰지 않음). 마을 스폰은 _public_spawn 이 역할 무관 테마를 준다.
             "appearance": npc["persona"].get("appearance", ""),
         },
-        "opening": {"message_id": opening_row["id"], "content": opening["message"]},
+        # 구매자 모드면 None — 프론트가 빈 채팅 + 빠른 문의 칩을 띄운다.
+        "opening": opening_payload,
+        "suggested_messages": _BUYER_SUGGESTED_MESSAGES if requires_player_first else [],
         "max_turns": _MAX_PLAYER_TURNS,
     }
 

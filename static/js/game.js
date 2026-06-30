@@ -132,22 +132,28 @@
     return (nowMs - s.bornAt) / 1000 >= delay;
   }
 
-  // 판매자 모드 구매자 NPC 의 접근 상태머신: roaming→interested→approaching→waiting
+  // 판매자 모드 구매자 NPC 의 접근 상태머신.
+  // 누가 '다가와 문의를 남길지'는 서버가 페이싱/최대수까지 고려해 정한다(s.inquiry_id).
+  // 클라이언트는 그 결정에 맞춰 걸어오는 연출만 한다 (roaming→interested→approaching→waiting).
   function updateSellerBuyer(s, now, nowMs, TILE) {
+    const hasInquiry = !!s.inquiry_id;
+    if (!hasInquiry) {
+      // 서버 문의 없음 → 그냥 떠돈다(다가오지 않음). 한꺼번에 몰리지 않게.
+      s.approachState = "roaming";
+      s.inquiryNotified = false;  // 다음에 새 문의가 생기면 다시 알림
+      roamStep(s, now, TILE);
+      return;
+    }
     const st = s.approachState || "roaming";
     if (st === "roaming") {
-      if (approachReady(s, nowMs)) {
-        s.approachState = "interested";
-        s.stateAt = nowMs;
-        s.moving = false;
-      } else {
-        roamStep(s, now, TILE);
-      }
+      s.approachState = "interested";                         // 막 문의를 보냄 → 다가오기 시작
+      s.stateAt = nowMs;
+      s.moving = false;
       return;
     }
     if (st === "interested") {
       s.moving = false;                                       // 잠깐 멈춰 '관심'(생각 말풍선)
-      if (nowMs - (s.stateAt || nowMs) > 1400) {
+      if (nowMs - (s.stateAt || nowMs) > 1200) {
         s.approachState = "approaching";
         s.stateAt = nowMs;
       }
@@ -168,7 +174,7 @@
         if (!s.inquiryNotified) {
           s.inquiryNotified = true;
           if (global.SafeDeal && SafeDeal.toast) {
-            SafeDeal.toast("🔔 구매자가 문의를 보냈습니다 — 가까이서 E/Space 로 응대하세요");
+            SafeDeal.toast("🔔 구매자가 문의를 보냈습니다 — 카드의 ‘답장하기’ 또는 가까이서 E/Space");
           }
         }
       }
@@ -191,13 +197,12 @@
     });
   }
 
-  // 가장 가까운 '대기 중(waiting)' 구매자를 응대 (알림 클릭/HUD 버튼용)
+  // 가장 가까운 '문의를 남긴' 구매자를 응대 (알림 클릭/HUD 버튼용)
   function openNearestWaiting() {
     if (paused || !player) return;
     let best = null, bd = Infinity;
     SafeDealSpawns.list().forEach((s) => {
-      if (s.npc_kind !== "buyer") return;
-      if (s.approachState !== "waiting" && s.approachState !== "approaching") return;
+      if (s.npc_kind !== "buyer" || !s.inquiry_id) return;  // 서버 문의가 있는 구매자만
       const d = Math.hypot(s.px - player.px, s.py - player.py);
       if (d < bd) { bd = d; best = s; }
     });
@@ -207,9 +212,101 @@
   function waitingCount() {
     let n = 0;
     SafeDealSpawns.list().forEach((s) => {
-      if (s.npc_kind === "buyer" && s.approachState === "waiting") n++;
+      if (s.npc_kind === "buyer" && s.inquiry_id) n++;  // 서버 문의(대기) 기준
     });
     return n;
+  }
+
+  /* ---------- 인바운드 문의 카드 (판매자 모드) ---------- */
+  // 서버가 만든 대기 문의를 spawn_instance_id/inquiry_id 로 매칭해 카드로 띄운다.
+  // 만료/응대/스폰 소멸로 목록에서 빠지면 카드도 자동 제거된다(매 프레임 재조정).
+  const inquiryCardsEl = document.getElementById("inquiry-cards");
+
+  function buildInquiryCard(s) {
+    const card = document.createElement("div");
+    card.className = "inquiry-card";
+    card.dataset.inquiryId = s.inquiry_id;
+    const name = document.createElement("div");
+    name.className = "inquiry-card-name";
+    name.textContent = "🛒 " + (s.name || "구매자");
+    const preview = document.createElement("p");
+    preview.className = "inquiry-card-preview";
+    preview.textContent = s.inquiry_preview || "이거 아직 판매 중인가요?";
+    const bar = document.createElement("div");
+    bar.className = "inquiry-card-decay";
+    const fill = document.createElement("div");
+    fill.className = "inquiry-card-decay-fill";
+    bar.appendChild(fill);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "inquiry-card-reply";
+    btn.textContent = "답장하기";
+    btn.addEventListener("click", () => {
+      const id = card.dataset.inquiryId;
+      const sp = SafeDealSpawns.list().filter((x) => x.inquiry_id === id)[0];
+      if (sp && global.SafeDealChat && SafeDealChat.openCard) SafeDealChat.openCard(sp);
+    });
+    card.appendChild(name);
+    card.appendChild(preview);
+    card.appendChild(bar);
+    card.appendChild(btn);
+    inquiryCardsEl.appendChild(card);
+    return card;
+  }
+
+  function decayInquiryCard(card, s) {
+    const fill = card.querySelector(".inquiry-card-decay-fill");
+    if (!fill) return;
+    let remaining = s.inquiry_remaining_seconds || 0;
+    if (s.inquiryExpiresAt) {
+      remaining = Math.max(0, Math.round((s.inquiryExpiresAt - Date.now()) / 1000));
+    }
+    let max = parseInt(card.dataset.maxSeconds || "0", 10);
+    if (!max || remaining > max) { max = remaining || 1; card.dataset.maxSeconds = String(max); }
+    const pct = Math.max(0, Math.min(100, Math.round((remaining / max) * 100)));
+    fill.style.width = pct + "%";
+  }
+
+  function updateInquiryCards() {
+    if (!inquiryCardsEl) return;
+    if (gameRole !== "seller") {
+      if (inquiryCardsEl.childElementCount) inquiryCardsEl.innerHTML = "";
+      inquiryCardsEl.classList.add("hidden");
+      return;
+    }
+    const buyers = SafeDealSpawns.list().filter((s) => s.npc_kind === "buyer");
+    const live = buyers.filter((s) => s.inquiry_id);
+    const liveIds = Object.create(null);
+    live.forEach((s) => (liveIds[s.inquiry_id] = s));
+    // 사라진 문의 카드 제거 (만료/응대/스폰 소멸). 안내 플레이스홀더(.inquiry-browsing)는 보존.
+    Array.prototype.slice.call(inquiryCardsEl.children).forEach((card) => {
+      if (!card.dataset.inquiryId) return;
+      if (!liveIds[card.dataset.inquiryId]) card.remove();
+    });
+    // 추가 + 디케이 갱신 (키=inquiry_id 로 재조정, 매 프레임 innerHTML 재생성 안 함)
+    live.forEach((s) => {
+      let card = inquiryCardsEl.querySelector('[data-inquiry-id="' + s.inquiry_id + '"]');
+      if (!card) card = buildInquiryCard(s);
+      decayInquiryCard(card, s);
+    });
+    // 아직 문의가 없을 땐 '구매자들이 둘러보는 중' 안내로 시스템이 살아있음을 알린다.
+    // (첫 문의가 등장하기까지 수~수십 초 비어 보이는 구간을 메운다.)
+    ensureBrowsingHint(live.length === 0 && buyers.length > 0);
+    inquiryCardsEl.classList.toggle("hidden", live.length === 0 && buyers.length === 0);
+  }
+
+  // 문의가 도착하기 전 '구매자들이 둘러보는 중…' 안내 (문의 카드 영역 하단).
+  function ensureBrowsingHint(show) {
+    let hint = inquiryCardsEl.querySelector(".inquiry-browsing");
+    if (!show) { if (hint) hint.remove(); return; }
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "inquiry-browsing";
+      hint.innerHTML =
+        '<span class="inquiry-browsing-dot"></span>' +
+        "<span>구매자들이 둘러보는 중…</span>";
+      inquiryCardsEl.appendChild(hint);
+    }
   }
 
   /* ---------- 업데이트 ---------- */
@@ -261,6 +358,7 @@
     }
 
     updateInquiryAlert();
+    updateInquiryCards();
   }
 
   // 판매자 모드: 대기 중인 구매자 문의 알림(클릭하면 응대). 구매자 모드/0건이면 숨긴다.
@@ -568,6 +666,7 @@
     hintEl.classList.add("hidden");
     if (inquiryAlertEl) inquiryAlertEl.classList.add("hidden");
     inquiryAlertCount = -1;
+    if (inquiryCardsEl) { inquiryCardsEl.innerHTML = ""; inquiryCardsEl.classList.add("hidden"); }
   }
 
   global.SafeDealGame = {

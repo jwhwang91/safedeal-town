@@ -27,6 +27,7 @@
   const elMarket = document.getElementById("listing-market");
   const elLocation = document.getElementById("listing-location");
   const elBody = document.getElementById("chat-body");
+  const elQuick = document.getElementById("chat-quick");
   const elInput = document.getElementById("chat-input");
   const elSend = document.getElementById("chat-send");
   const elTurn = document.getElementById("chat-turn-text");
@@ -94,6 +95,48 @@
     wrap.appendChild(bubble);
     elBody.appendChild(wrap);
     scrollBottom();
+  }
+
+  /* ---------- 구매자 모드: 빈 채팅 안내 + 빠른 문의 칩 ---------- */
+  // 실제 중고앱처럼 판매자 NPC 는 먼저 말하지 않는다. 플레이어가 첫 문의를 보낸다.
+  function renderEmptyState() {
+    const div = document.createElement("div");
+    div.className = "chat-empty";
+    div.id = "chat-empty";
+    div.innerHTML =
+      '<div class="chat-empty-emoji">💬</div>' +
+      "<p>판매자에게 먼저 문의해보세요.</p>" +
+      '<span class="chat-empty-hint">아래 빠른 문의를 누르거나 직접 입력해 보세요.</span>';
+    elBody.appendChild(div);
+  }
+  function clearEmptyState() {
+    const e = document.getElementById("chat-empty");
+    if (e) e.remove();
+  }
+  function renderQuickChips(messages) {
+    elQuick.innerHTML = "";
+    if (!messages || !messages.length) {
+      elQuick.classList.add("hidden");
+      return;
+    }
+    messages.forEach((text) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "suggest-chip";
+      chip.textContent = text;
+      chip.addEventListener("click", () => {
+        // '채우기' — 키보드 흐름 유지: 입력란에 넣고 포커스 (사용자가 검토 후 전송)
+        if (!session || session.resolved || session.busy) return;
+        elInput.value = text;
+        elInput.focus();
+      });
+      elQuick.appendChild(chip);
+    });
+    elQuick.classList.remove("hidden");
+  }
+  function hideQuickChips() {
+    elQuick.innerHTML = "";
+    elQuick.classList.add("hidden");
   }
 
   let typingEl = null;
@@ -252,7 +295,8 @@
     // spawn: { spawn_instance_id, name, ... } (npc_id/role 은 클라이언트에 없음)
     SafeDealGame.setPaused(true);
     try {
-      const data = await API.chat.start(spawn.spawn_instance_id);
+      // 판매자 모드 인바운드 문의에서 시작하면 inquiry_id 를 함께 보내 '수락됨' 처리한다.
+      const data = await API.chat.start(spawn.spawn_instance_id, spawn.inquiry_id);
       const effects = (SafeDealGame.effects && SafeDealGame.effects()) || [];
       session = {
         sessionId: data.session_id,
@@ -263,6 +307,8 @@
         busy: false,
         resolved: false,
         effects: effects,
+        // 구매자 모드: 판매자 NPC 는 먼저 말하지 않는다 → 플레이어가 첫 문의를 보내야 함
+        requiresPlayerFirst: !!data.requires_player_first_message,
       };
 
       // 헤더
@@ -293,7 +339,14 @@
         : "거래를 마칠 준비가 됐다면 선택하세요";
 
       elBody.innerHTML = "";
-      addNpcMessage(data.opening.message_id, data.opening.content);
+      if (session.requiresPlayerFirst || !data.opening) {
+        // 빈 채팅 + 빠른 문의 칩 — 판매자 NPC 오프닝은 렌더하지 않는다.
+        renderEmptyState();
+        renderQuickChips(data.suggested_messages || []);
+      } else {
+        addNpcMessage(data.opening.message_id, data.opening.content);
+        hideQuickChips();
+      }
       updateTurn();
 
       elInput.value = "";
@@ -329,6 +382,9 @@
     }
     session.busy = true;
     setInputEnabled(false);
+    // 첫 메시지: 빈 채팅 안내/빠른 문의 칩을 걷어낸다 (이 메시지가 '플레이어 첫 발화').
+    clearEmptyState();
+    hideQuickChips();
     addPlayerMessage(text);
     elInput.value = "";
     showTyping();

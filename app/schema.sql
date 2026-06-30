@@ -163,6 +163,25 @@ CREATE TABLE IF NOT EXISTS user_market_preferences (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- ----- 판매자 모드 인바운드 문의 (구매자 NPC 가 내 판매글에 남긴 문의 카드) -----
+-- 백엔드가 페이싱(간격/최대수)을 관리한다. spawn 이 사라지면 FK CASCADE 로 문의도 사라진다.
+-- npc_id(앵커=정답지)는 서버 전용 — 클라이언트로는 절대 직렬화하지 않는다.
+CREATE TABLE IF NOT EXISTS seller_inquiries (
+    id              TEXT PRIMARY KEY,                -- uuid
+    user_id         INTEGER NOT NULL,                -- 판매자(플레이어)
+    spawn_id        TEXT NOT NULL,                   -- 어느 활성 스폰(구매자 NPC)에서 왔나
+    npc_id          TEXT NOT NULL,                   -- 앵커 NPC (정답지 — 클라이언트 비노출)
+    listing_title   TEXT,                            -- 당시 내 판매글 제목
+    inquiry_preview TEXT,                            -- 중립 첫 문의 미리보기 (구매자 유형 비노출)
+    status          TEXT NOT NULL DEFAULT 'waiting',  -- 'waiting' | 'accepted' | 'expired'
+    session_id      TEXT,                            -- accept 시 시작된 거래 세션 (선택)
+    created_at      TEXT NOT NULL,
+    expires_at      TEXT NOT NULL,
+    FOREIGN KEY (user_id)  REFERENCES users(id)         ON DELETE CASCADE,
+    FOREIGN KEY (spawn_id) REFERENCES active_spawns(id) ON DELETE CASCADE,
+    FOREIGN KEY (npc_id)   REFERENCES npcs(id)          ON DELETE CASCADE
+);
+
 -- ----- 인벤토리 아이템 정의 (거래 도구/배지/코스튬) -----
 CREATE TABLE IF NOT EXISTS items (
     id          TEXT PRIMARY KEY,
@@ -225,3 +244,4 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_results_user     ON trade_results(user_id);
 CREATE INDEX IF NOT EXISTS idx_spawns_user      ON active_spawns(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_user_items_user  ON user_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_seller_inq_user  ON seller_inquiries(user_id, status);

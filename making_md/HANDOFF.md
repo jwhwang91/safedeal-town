@@ -2,6 +2,7 @@
 
 > 새 세션이 이 파일만 읽고 바로 이어서 작업할 수 있도록 정리한 문서.
 > 작성 시점: 2026-06-29. 작성: 이전 세션(2-사이드 마켓플레이스 업그레이드 완료).
+> 갱신: 2026-07-01 — 판매자 인바운드 문의 + 구매자 선(先)문의 (아래 §0.5).
 
 ---
 
@@ -10,6 +11,47 @@
 구매자 전용 사기탐지 게임을 **양방향(구매자/판매자) 중고거래 훈련 시뮬레이터**로 업그레이드 완료.
 기존 구매자 플로우는 그대로 보존. 백엔드/프론트 전 구간 구현 + 라이브 브라우저 검증까지 끝남.
 `python run.py` 로 키 없이 바로 실행됨.
+
+---
+
+## 0.5 최신 작업 (2026-07-01): 판매자 인바운드 문의 + 구매자 선(先)문의
+
+실제 중고앱 흐름에 맞춰 두 모드의 "첫 접촉"을 다듬은 기능. **구현·검증·커밋 완료.**
+
+**판매자 모드 — 인바운드 문의(서버 관리):** 판매글을 올리면 구매자 NPC 들이 마을을 떠돌다가
+일부가 다가와 **문의 카드**를 남기고(roaming→interested→approaching→waiting), 플레이어가
+카드의 `답장하기`(또는 가까이서 E/Space)로 수락하면 거래(채팅)가 시작된다.
+- 누가/언제 다가올지(페이싱·동시 최대수·수명)는 **서버가 권위적으로** 정한다(`app/inquiries.py`,
+  새 테이블 `seller_inquiries`). 프론트는 서버가 준 `inquiry_id` 가 있는 스폰만 다가오게 연출한다.
+- 정답지 보호 유지: 문의는 **중립 미리보기**(상품명만 가림)만 노출. npc_id/role/유형은 서버 전용.
+- 문의 도착 전 빈 구간엔 `구매자들이 둘러보는 중…` 안내(`.inquiry-browsing`)로 살아있음을 알림.
+
+**구매자 모드 — 플레이어가 먼저 문의:** 판매자 NPC 가 더 이상 먼저 말하지 않는다.
+`/api/chat/start` 가 `requires_player_first_message=true` + `opening=null` + `suggested_messages`(빠른
+문의 칩)를 주고, 프론트는 빈 채팅 + 칩(`#chat-quick`)을 띄운다. 첫 발화는 플레이어 몫.
+
+**새/수정 파일:** (신규) `app/inquiries.py`. (백엔드) `config.py`·`migrations.py`·`models.py`·
+`schema.sql`·`spawns.py`·`routers/{game,chat}.py`. (프론트) `js/{api,chat,game,spawn_manager}.js`·
+`index.html`·`css/style.css`. **정적 캐시 버전 `?v=10 → ?v=11`** 로 올림.
+
+**새 API:** `GET /api/game/inquiries`(대기 문의 목록), `POST /api/game/inquiries/{id}/accept`(수락→채팅).
+단, **현재 UI 는 이 두 엔드포인트를 쓰지 않는다** — 스폰에 박힌 `inquiry_id` + `chat.start(inquiry_id)`
+경로로 동작한다(두 엔드포인트는 유효하지만 미사용 surface). `chat.start` 가 `inquiry_id` 를 받는다.
+
+**이번에 고친 버그(검증 완료):**
+1. **동시 수락 → 중복 거래 세션(중복 보상) 레이스** — 같은 문의를 더블클릭/동시 요청하면 거래 세션이
+   2개 생겼다(읽기는 비잠금, 세션 INSERT·engage 는 무조건, `mark_accepted` 가드만 사후). →
+   `app/inquiries.py:claim_inquiry()`(조건부 UPDATE + rowcount 게이트)로 **세션 만들기 전에 원자적으로
+   선점**하고, 실패 시 409 로 거절(아무것도 커밋 전이라 conn 종료 시 전부 롤백). `mark_accepted` 제거.
+2. **만료 문의 수락 불일치** — `spawn_id_for` 가 만료를 안 봤다(`list_waiting` 은 봄). →
+   `spawn_id_for`/`claim_inquiry` 모두 `expires_at > now` 필터 추가. 만료 카드 수락 시 친절한 404.
+
+**알려진(의도된) 한계, 미변경:** 구매자 모드는 이제 대화 0턴으로 바로 결정/채점이 가능하다
+(verdict 가 role+결정 규칙 기반이라 무대화 보상 파밍 여지). 교육용 밸런스 판단이라 동작은 유지함 —
+필요하면 "결정 전 1턴 이상" 게이트를 넣을 수 있음.
+
+**검증:** `python -m compileall app` OK, 모든 JS `node --check` OK, TestClient 통합 21/21 PASS
+(동시 수락→세션 1개·loser 409, 만료→404, 정상 수락→소비, 스폰 페이로드 정답지 무유출).
 
 ---
 

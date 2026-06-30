@@ -400,6 +400,49 @@ def refresh_spawns(
 
 
 # ============================================================
+#  판매자 모드 인바운드 문의 (구매자 NPC 가 내 판매글에 남긴 문의)
+# ============================================================
+@router.get("/inquiries")
+def get_inquiries(
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """현재 대기 중인 인바운드 문의 목록 (판매자 모드 전용).
+
+    정답지(npc_id/role/유형)는 절대 포함하지 않는다. 중립 미리보기만 노출한다.
+    스폰이 사라지거나 수명이 다한 문의는 목록에서 빠진다(카드 자동 제거).
+    """
+    if (user["game_role"] or "buyer") != "seller":
+        return {"inquiries": []}
+    from app import inquiries as inquiry_mgr
+    # 폴링 시점에 만료/생성도 반영되도록 한 번 갱신한다 (실패해도 목록은 돌려준다).
+    try:
+        profile = worldgen.get_or_build_profile(conn, user)
+        spawn_mgr.refresh_and_list(conn, user, profile)
+        conn.commit()
+    except Exception:
+        pass
+    return {"inquiries": inquiry_mgr.list_waiting(conn, user["id"])}
+
+
+@router.post("/inquiries/{inquiry_id}/accept")
+def accept_inquiry(
+    inquiry_id: str,
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """문의를 수락하고 그 구매자와 거래(채팅)를 시작한다.
+
+    /api/chat/start 와 동일한 응답(session_id + 공개 NPC 정보)을 돌려준다.
+    본인 소유의 대기 중 문의만 수락할 수 있다(start_chat 내부 매핑에서 검증).
+    """
+    from app.models import StartChatRequest
+    from app.routers.chat import start_chat
+    body = StartChatRequest(inquiry_id=inquiry_id)
+    return start_chat(body, user, conn)
+
+
+# ============================================================
 #  진행도 / 전적 / 리더보드
 # ============================================================
 @router.get("/profile")
