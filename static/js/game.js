@@ -21,6 +21,7 @@
   let paused = true;
   let started = false;
   let gameRole = "buyer";
+  let equippedEffects = [];  // 장착된 거래 도구 효과키 (체크리스트/답변칩에 사용)
 
   const keys = Object.create(null);
   const MOVE_KEYS = {
@@ -168,7 +169,10 @@
 
   function tryInteract() {
     if (paused || !nearby) return;
-    if (global.SafeDealChat && SafeDealChat.openChat) {
+    // 대화 전에 먼저 프로필/매물 카드를 보여준다 (없으면 바로 대화).
+    if (global.SafeDealChat && SafeDealChat.openCard) {
+      SafeDealChat.openCard(nearby);
+    } else if (global.SafeDealChat && SafeDealChat.openChat) {
       SafeDealChat.openChat(nearby);
     }
   }
@@ -390,17 +394,20 @@
       px: sp.px, py: sp.py, facing: "down", moving: false, walkPhase: 0,
       avatar: (world.player && world.player.avatar) || SafeDealAvatar.DEFAULT_AVATAR,
     };
+    equippedEffects = (world.player && world.player.equipped_effects) || [];
     applyBanner();
     if (global.SafeDeal && SafeDeal.updateHud) SafeDeal.updateHud(world.player);
     if (global.SafeDeal && SafeDeal.setRoleHud) SafeDeal.setRoleHud(gameRole);
     return world;
   }
 
-  // 거래 후 스폰/HUD 갱신
+  // 거래 후 / 장착 변경 후 스폰·HUD·아바타 갱신
   async function refreshWorld() {
     try {
       const world = await API.game.world();
       SafeDealSpawns.init(world.spawns || []);
+      if (player && world.player && world.player.avatar) player.avatar = world.player.avatar;
+      equippedEffects = (world.player && world.player.equipped_effects) || [];
       if (global.SafeDeal && SafeDeal.updateHud) SafeDeal.updateHud(world.player);
     } catch (_) { /* 무시 */ }
   }
@@ -428,5 +435,9 @@
     hintEl.classList.add("hidden");
   }
 
-  global.SafeDealGame = { loadWorld, refreshWorld, start, setPaused, reset };
+  global.SafeDealGame = {
+    loadWorld, refreshWorld, start, setPaused, reset,
+    effects: () => equippedEffects.slice(),
+    role: () => gameRole,
+  };
 })(window);

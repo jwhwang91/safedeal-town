@@ -48,6 +48,58 @@ python run.py
 
 ---
 
+## 마켓 · 동적 매물 · 거래 가방 (확장 시스템)
+
+고정 NPC/아이템 게임에서 → **현실적인 중고장터 훈련 시뮬레이션**으로 확장했습니다.
+
+### 입장 전 설정
+- 🛒 **구매자**: '오늘 찾는 물건'(카테고리 15종 + 가격 민감도 + 선호 거래방식)을 고르면,
+  마을에 그 카테고리의 **매번 다른 매물**이 등장합니다.
+- 🏪 **판매자**: '내 판매글'(상품/상태/가격/구성품/하자/환불원칙/준비한 증거)을 정의하면,
+  찾아오는 구매자 NPC 가 **그 물건을 보고** 반응합니다. (상품 선택 시 시세·구성품 자동완성)
+
+### 시장 데이터 어댑터 (`app/market/`)
+NPC 매물은 '시장 맥락 제공자'로 생성됩니다. `.env` 의 `MARKET_LISTING_PROVIDER` 로 선택:
+
+| 값 | 설명 |
+|----|------|
+| `synthetic` (기본) | 내장 카탈로그로 합성. 키 불필요, **오프라인 항상 동작**. |
+| `manual_import` | 개발자가 둔 안전한 CSV/JSON 을 **개인정보 제거 후** 사용 (`runtime/imports/`). |
+| `trend_cache` | 비식별·집계된 시장 트렌드 캐시 기반 생성 (`runtime/market_trends.json`). |
+| `official_stub` | (미구현) 공식 API 자리표시자 — **실제 호출/스크래핑 없음**. |
+
+> 🔒 **안전/법적 경계**: 당근마켓·번개장터 등 실서비스 **스크래핑/크롤링/로그인 자동화는 하지 않습니다.**
+> 실제 게시글 원문·이미지·사용자명·연락처·정확한 주소·계좌번호를 복제·표시하지 않습니다.
+> 수동 import 데이터는 `normalizer` 가 개인정보(이름/전화/이메일/주소 지번/계좌/URL/핸들)를
+> 모두 제거한 비식별 메타데이터만 사용합니다. 선택한 제공자가 실패하면 자동으로 `synthetic` 폴백합니다.
+> 프레이밍은 **"실시장 트렌드를 참고한 가상 NPC/매물 생성"** 이지 "실제 게시글 복제"가 아닙니다.
+
+### 동적 NPC + 프로필/매물 카드
+- `app/ai/persona_factory.py` 가 기본 페르소나를 '앵커'로 삼아 매물·이름·성격·말투·대사를 매번 새로 입힙니다.
+  (정답지인 role/tactics 는 앵커에서 유지 → 검증된 채점/FK 무결성 보존)
+- 대화 전 **프로필/매물 카드**(시세·상태·구성품·거래방식 + 가입/후기/매너/인증 같은 공개 메타데이터)를 보여줍니다.
+  사기꾼도 좋아 보이는 프로필을 가질 수 있어, **카드만으로는 정답을 알 수 없습니다.**
+
+### 거래 가방(인벤토리) · 보상 · 거래 도구
+- 거래를 성공하면 **거래 도구 / 신뢰 배지 / 코스튬**을 보상으로 얻습니다 (희귀도는 점수·난이도·판정에 따라).
+- 🎒 **가방** 버튼으로 보유 아이템을 장착/해제합니다.
+  - **코스튬**(후드/탐정 안경/고수 모자 등)은 아바타에 즉시 반영됩니다.
+  - **거래 도구**(최대 2개)는 대화 중 현실적인 **체크리스트/답변칩/주의 신호**를 제공합니다.
+    예) 시세 레이더(가격 주의), 링크 경고기(외부 링크 경고), 사진 인증 키트(요청 답변칩),
+    환불 대응 카드(침착 거절/부분환불/분쟁 템플릿), 거래 기록 폴더(증거 활용 알림).
+  - 도구는 **정답을 대신 알려주지 않습니다** — 확인 습관을 돕는 도구일 뿐입니다.
+- 모든 거래 결정 화면에 **거래 체크리스트**(시세 확인/실물 인증/외부 링크 거절 등)가 있고,
+  올바른 결정일 때 소폭 가점됩니다 (자기보고식이라 상한 +4).
+
+### 거래 후 상황 + 거래 습관 리포트
+- 결과 모달에 **"거래 후 상황" + "현실에서의 교훈"** 을 짧게 보여줍니다 (교육적, 비자극적).
+- 🎒 가방 → **내 거래 습관**: 기존 거래 기록으로 강점/보완점/다음 훈련 추천을 요약합니다.
+
+> 🧩 적응형 장기 메모리(Adaptive Scenario Evolution Engine)는 **아직 미구현**입니다.
+> 위 시스템들은 향후 그 엔진과 호환되도록(선호/판매글/매물 씨앗을 일반화) 설계되었습니다.
+
+---
+
 ## AI 모드 (mock / openai / local_claude)
 
 `.env` 의 `AI_MODE` 로 동작이 갈립니다. 어떤 모드든 **실패 시 자동으로 mock 폴백**합니다.
@@ -126,23 +178,33 @@ safedeal-town/
 │  ├─ worldgen.py         시드 기반 절차적 동네 생성  ★신규
 │  ├─ spawns.py           NPC 등장/소멸 관리  ★신규
 │  ├─ security.py / models.py / deps.py
+│  ├─ preferences.py      구매 위시리스트 + 판매글 저장소  ★신규
+│  ├─ rewards.py          인벤토리 아이템 정의/지급/장착 + 보상 굴리기  ★신규
+│  ├─ aftermath.py        거래 후 상황 + 현실 교훈  ★신규
+│  ├─ market/             시장 데이터 어댑터 + 상품 카탈로그  ★신규
+│  │  ├─ catalog.py           상품 카탈로그 + 매물 생성기
+│  │  ├─ providers.py         ListingProvider 인터페이스 + MarketListingSeed + 팩토리
+│  │  ├─ synthetic_provider.py / manual_import_provider.py / trend_cache.py
+│  │  └─ normalizer.py        개인정보 제거 + 정규화
 │  ├─ routers/
 │  │  ├─ auth.py          회원가입/로그인/내 정보
-│  │  ├─ game.py          셋업·아바타·위치·월드·스폰·진행도·전적
-│  │  └─ chat.py          거래 대화 (구매자/판매자 모드 모두)
+│  │  ├─ game.py          셋업·선호·판매글·아바타·위치·월드·스폰·전적·인벤토리·습관리포트
+│  │  └─ chat.py          거래 대화 + 프로필카드 + 보상/체크리스트/거래후상황
 │  └─ ai/
-│     ├─ personas.py      판매자 NPC + 구매자 NPC + 수법/행동 사전
-│     ├─ prompts.py       역할극/심판 프롬프트 (인젝션 방어 포함)
-│     ├─ provider.py      제공자 라우팅 (mock/openai/local_claude)  ★신규
+│     ├─ personas.py      판매자 NPC + 구매자 NPC + 수법/행동 사전 (동적 생성의 앵커)
+│     ├─ persona_factory.py  동적 NPC/매물/프로필 카드 생성  ★신규
+│     ├─ prompts.py       역할극/심판 프롬프트 (인젝션 방어 + 판매글 인지)
+│     ├─ provider.py      제공자 라우팅 (mock/openai/local_claude)
 │     ├─ llm_client.py    OpenAI 호환 API 래퍼
-│     ├─ local_claude_adapter.py  로컬 CLI 어댑터  ★신규
-│     ├─ roleplay.py      BaseRoleplayAgent / SellerAgent / BuyerAgent  ★신규
+│     ├─ local_claude_adapter.py  로컬 CLI 어댑터
+│     ├─ roleplay.py      BaseRoleplayAgent / SellerAgent / BuyerAgent (판매글 인지)
 │     ├─ seller_agent.py  하위호환 재노출 shim
 │     ├─ judge_agent.py   심판/코치 (구매자 + 판매자 모드)
-│     └─ privacy.py       AI 출력 위생처리  ★신규
+│     └─ privacy.py       AI 출력 위생처리
 └─ static/
    ├─ index.html / css/style.css
-   └─ js/  api · auth · avatar · sprites · world_map · spawn_manager · game · setup · chat · main
+   └─ js/  api · auth · avatar · sprites · world_map · spawn_manager · game ·
+           listing_setup · setup · checklist · chat · inventory · main
 ```
 
 ---
@@ -151,12 +213,18 @@ safedeal-town/
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET/POST | `/api/game/setup` | 역할/아바타/카테고리 조회·저장 |
+| GET/POST | `/api/game/setup` | 역할/아바타/카테고리 조회·저장 (+ 선호 프리필) |
+| GET | `/api/game/catalog` | 카탈로그 메타 (카테고리/상태/상품 자동완성) |
+| GET/POST | `/api/game/preferences` | 구매 위시리스트 (카테고리/가격/거래방식) |
+| GET/POST | `/api/game/listing` | 판매자 판매글 (위생처리 저장) |
 | POST | `/api/game/avatar` | 아바타만 갱신 |
 | POST | `/api/game/location` | 대략 위치 저장 → 맵 시드 |
-| GET | `/api/game/world` | 맵 + 플레이어(아바타/역할) + 스폰 |
-| GET | `/api/game/spawns` | 활성 스폰 목록 (만료 정리/충원) |
-| POST | `/api/game/spawns/refresh` | 스폰 강제 새로고침 (개발용) |
+| GET | `/api/game/world` | 맵 + 플레이어(아바타+장착효과) + 스폰 |
+| GET | `/api/game/spawns` · POST `/spawns/refresh` | 활성 스폰 목록 / 강제 새로고침 |
+| GET | `/api/game/inventory` · POST `/equip` · `/unequip` | 거래 가방 / 장착·해제 |
+| GET | `/api/game/rewards/catalog` | 아이템 도감 |
+| GET | `/api/game/habit-report` | 내 거래 습관 요약 |
+| POST | `/api/chat/card` | 대화 전 프로필/매물 카드 (정답지 미포함) |
 | POST | `/api/chat/start·message·flag·resolve` | 거래 대화 (모드 자동 판별) |
 
 ---
@@ -179,9 +247,20 @@ safedeal-town/
 14. `AI_MODE=local_claude` 는 CLI 가 없으면 안전하게 mock 폴백.
 15. 브라우저 개발자도구로 봐도 사기꾼/구매자 정체(role/tactics)가 안 보인다.
 16. 지도/AI API 키가 프론트로 노출되지 않는다.
+17. 구매자 셋업에서 카테고리를 고르면 그 카테고리의 **다양한 매물**이 등장한다(같은 카테고리도 매번 다른 물건/가격/상태/성격).
+18. 판매자 셋업에서 판매글을 만들면 구매자 NPC 가 **그 물건/하자**를 보고 반응한다.
+19. NPC 가까이서 E/Space → **프로필/매물 카드** → '대화 시작'.
+20. 거래 성공 시 보상 아이템이 드랍되고, 🎒 가방에서 장착하면 아바타/체크리스트에 반영된다.
+21. 결과 모달에 **거래 후 상황 + 현실 교훈**, 🎒 → **내 거래 습관** 리포트가 보인다.
+22. `MARKET_LISTING_PROVIDER=manual_import` 로 둔 샘플(JSON)의 **개인정보(이름/전화/이메일/주소/계좌/URL)가 제거**된다.
+23. 어떤 마켓 제공자도 **실서비스 스크래핑을 하지 않는다** (synthetic 폴백 보장).
 
 빠른 자동 점검(선택):
 ```bash
 python -m compileall app            # 파이썬 컴파일 점검
 for f in static/js/*.js; do node --check "$f"; done   # JS 문법 점검
+
+# 수동 import 위생처리 빠른 확인 (샘플을 복사해서 테스트)
+cp runtime/imports/market_listings.example.json runtime/imports/market_listings.json
+MARKET_LISTING_PROVIDER=manual_import python -c "from app.market import fetch_seeds; print([s.product_name for s in fetch_seeds('random', 5)])"
 ```

@@ -11,6 +11,12 @@
   const chatOverlay = document.getElementById("chat-overlay");
   const resultOverlay = document.getElementById("result-overlay");
   const recordOverlay = document.getElementById("record-overlay");
+  const cardOverlay = document.getElementById("card-overlay");
+  const elCardAvatar = document.getElementById("card-avatar");
+  const elCardName = document.getElementById("card-name");
+  const elCardSub = document.getElementById("card-sub");
+  const elCardProfile = document.getElementById("card-profile");
+  const elCardListing = document.getElementById("card-listing");
 
   const elAvatar = document.getElementById("chat-avatar");
   const elNpcName = document.getElementById("chat-npc-name");
@@ -65,8 +71,18 @@
     flagBtn.addEventListener("click", () => toggleFlag(messageId, bubble, flagBtn));
     tools.appendChild(flagBtn);
     wrap.appendChild(tools);
+    // 링크 경고기(도구): 외부 링크가 감지되면 경고만 표시 (사기로 단정하지 않음)
+    if (session && (session.effects || []).indexOf("link_warning") >= 0 && hasLink(content)) {
+      const warn = document.createElement("div");
+      warn.className = "link-warning";
+      warn.textContent = "⚠️ 외부 링크가 감지됐어요. 누르지 말고 앱 안에서 거래하세요.";
+      wrap.appendChild(warn);
+    }
     elBody.appendChild(wrap);
     scrollBottom();
+  }
+  function hasLink(text) {
+    return /(\[\.\]|https?:\/\/|www\.|\b[\w-]+\.(com|net|kr|org|example)\b)/i.test(String(text || ""));
   }
   function addPlayerMessage(content) {
     const wrap = document.createElement("div");
@@ -113,12 +129,120 @@
     elTurn.textContent = "대화 " + session.playerTurns + " / " + session.maxTurns;
   }
 
+  /* ---------- 프로필/매물 카드 (대화 전) ---------- */
+  let cardSpawn = null;
+
+  async function openCard(spawn) {
+    SafeDealGame.setPaused(true);
+    try {
+      const card = await API.chat.card(spawn.spawn_instance_id);
+      cardSpawn = spawn;
+      renderCard(card);
+      cardOverlay.classList.remove("hidden");
+    } catch (err) {
+      SafeDeal.toast(err.message);
+      SafeDealGame.setPaused(false);
+    }
+  }
+
+  function addCardMeta(label, value) {
+    if (!value) return;
+    const row = document.createElement("div");
+    row.className = "card-l-meta";
+    row.innerHTML =
+      '<span class="card-l-k">' + escapeHtml(label) + "</span>" +
+      "<span>" + escapeHtml(value) + "</span>";
+    elCardListing.appendChild(row);
+  }
+
+  function renderCard(card) {
+    const seller = card.mode === "seller";
+    elCardAvatar.style.background = card.sprite_color || "#d9744f";
+    elCardName.textContent = card.display_name || (seller ? "구매자" : "판매자");
+    const roleWord = seller ? "구매 문의" : "판매자";
+    elCardSub.textContent =
+      (card.appearance ? card.appearance + " · " : "") +
+      roleWord + " · 난이도 " + diffLabel(card.difficulty);
+
+    // 프로필 메타 (사기꾼도 좋아 보일 수 있음 — 정답 아님)
+    const p = card.profile || {};
+    elCardProfile.innerHTML = "";
+    [
+      ["📅", p.join_text],
+      ["⭐", p.review_count != null ? "후기 " + p.review_count : null],
+      ["😊", p.manner_score != null ? "매너 " + p.manner_score : null],
+      [p.verification_label === "본인인증 완료" ? "✅" : "⬜", p.verification_label],
+    ].forEach(([ic, txt]) => {
+      if (!txt) return;
+      const b = document.createElement("span");
+      b.className = "card-badge";
+      b.textContent = ic + " " + txt;
+      elCardProfile.appendChild(b);
+    });
+
+    // 매물
+    const L = card.listing || {};
+    elCardListing.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "card-l-title";
+    title.textContent = L.listing_title || L.item_name || "";
+    elCardListing.appendChild(title);
+
+    const priceRow = document.createElement("div");
+    priceRow.className = "card-l-price-row";
+    const ps = document.createElement("span");
+    ps.className = "card-l-price";
+    ps.textContent = won(L.listing_price || 0);
+    priceRow.appendChild(ps);
+    if (L.market_price) {
+      const mk = document.createElement("span");
+      mk.className = "card-l-market";
+      mk.textContent = (L.market_price_min && L.market_price_max)
+        ? "시세 " + won(L.market_price_min) + "~" + won(L.market_price_max)
+        : "시세 약 " + won(L.market_price);
+      priceRow.appendChild(mk);
+    }
+    elCardListing.appendChild(priceRow);
+
+    addCardMeta("상태", L.condition_label);
+    if ((L.disclosed_defects || []).length) addCardMeta("고지된 하자", L.disclosed_defects.join(", "));
+    if ((L.accessories || []).length) addCardMeta("구성품", L.accessories.join(", "));
+    if ((L.trade_methods || []).length) addCardMeta("거래방식", L.trade_methods.join(" · "));
+    addCardMeta("위치", L.region_label);
+    if (L.listing_description) {
+      const d = document.createElement("p");
+      d.className = "card-l-desc";
+      d.textContent = L.listing_description;
+      elCardListing.appendChild(d);
+    }
+    // 시세 레이더(도구) 힌트 — 정답을 알려주지 않는 '주의' 신호일 뿐
+    if (card.price_radar) {
+      const r = document.createElement("div");
+      r.className = "card-radar";
+      r.textContent = "📡 " + card.price_radar;
+      elCardListing.appendChild(r);
+    }
+  }
+
+  function closeCard() {
+    cardOverlay.classList.add("hidden");
+    cardSpawn = null;
+    SafeDealGame.setPaused(false);
+  }
+  function startFromCard() {
+    cardOverlay.classList.add("hidden");
+    const s = cardSpawn;
+    cardSpawn = null;
+    if (s) openChat(s);
+  }
+
   /* ---------- 대화 시작 ---------- */
   async function openChat(spawn) {
     // spawn: { spawn_instance_id, name, ... } (npc_id/role 은 클라이언트에 없음)
     SafeDealGame.setPaused(true);
     try {
       const data = await API.chat.start(spawn.spawn_instance_id);
+      const effects = (SafeDealGame.effects && SafeDealGame.effects()) || [];
       session = {
         sessionId: data.session_id,
         npc: data.npc,
@@ -127,6 +251,7 @@
         playerTurns: 0,
         busy: false,
         resolved: false,
+        effects: effects,
       };
 
       // 헤더
@@ -162,6 +287,15 @@
 
       elInput.value = "";
       elInput.placeholder = seller ? "구매자에게 메시지 보내기..." : "판매자에게 메시지 보내기...";
+
+      // 체크리스트 + 장착 도구 답변칩 (세션마다 초기화)
+      if (global.SafeDealChecklist) {
+        SafeDealChecklist.begin(session.mode, session.effects, (text) => {
+          elInput.value = text;
+          elInput.focus();
+        });
+      }
+
       chatOverlay.classList.remove("hidden");
       setInputEnabled(true);
     } catch (err) {
@@ -212,7 +346,8 @@
     setInputEnabled(false);
     showTyping();
     try {
-      const result = await API.chat.resolve(session.sessionId, decision);
+      const checklist = global.SafeDealChecklist ? SafeDealChecklist.getChecked() : [];
+      const result = await API.chat.resolve(session.sessionId, decision, checklist);
       hideTyping();
       session.resolved = true;
       chatOverlay.classList.add("hidden");
@@ -283,8 +418,28 @@
     if (rw.item_gained) chips.appendChild(makeChip("📦 " + rw.item_gained + " 획득!", "up"));
     if (rw.item_lost) chips.appendChild(makeChip("💔 " + rw.item_lost + " 빼앗김", "down"));
     if (rw.leveled_up) chips.appendChild(makeChip("🎉 레벨 업! Lv." + rw.new_level, "up"));
+    if (r.checklist && r.checklist.length) {
+      chips.appendChild(makeChip(
+        "📋 체크 " + r.checklist.length + (r.checklist_bonus ? " (+" + r.checklist_bonus + ")" : ""),
+        "up"
+      ));
+    }
+
+    // 인벤토리 아이템 보상 (거래 도구/배지/코스튬)
+    renderRewardItems(r.reward_items || []);
 
     document.getElementById("result-coaching").textContent = r.coaching || "";
+
+    // 거래 후 상황 + 현실 교훈
+    const after = r.aftermath || {};
+    const afterSec = document.getElementById("aftermath-section");
+    if (after.situation || after.lesson) {
+      document.getElementById("aftermath-situation").textContent = after.situation || "";
+      document.getElementById("aftermath-lesson").textContent = after.lesson || "";
+      afterSec.classList.remove("hidden");
+    } else {
+      afterSec.classList.add("hidden");
+    }
 
     // 플래그 복기
     const flagsHeading = document.querySelector("#flags-section h4");
@@ -344,6 +499,32 @@
     }
 
     resultOverlay.classList.remove("hidden");
+  }
+
+  const REWARD_ICON = {
+    cosmetic: "✨", badge: "🏅", tool: "🧰", profile_frame: "🖼️", checklist: "📋",
+  };
+  const RARITY_KO = {
+    common: "흔함", uncommon: "고급", rare: "희귀", epic: "에픽", legendary: "전설",
+  };
+  function renderRewardItems(items) {
+    const sec = document.getElementById("reward-items-section");
+    const box = document.getElementById("result-reward-items");
+    box.innerHTML = "";
+    if (!items.length) { sec.classList.add("hidden"); return; }
+    items.forEach((it) => {
+      const card = document.createElement("div");
+      card.className = "reward-item rarity-" + it.rarity;
+      card.innerHTML =
+        '<span class="reward-item-ic">' + (REWARD_ICON[it.item_type] || "📦") + "</span>" +
+        '<div class="reward-item-body">' +
+        '<div class="reward-item-name">' + escapeHtml(it.name) +
+        ' <span class="reward-item-rarity rarity-text-' + it.rarity + '">' + (RARITY_KO[it.rarity] || it.rarity) + "</span></div>" +
+        '<div class="reward-item-desc">' + escapeHtml(it.description || "") + "</div>" +
+        "</div>";
+      box.appendChild(card);
+    });
+    sec.classList.remove("hidden");
   }
 
   function makeChip(text, kind) {
@@ -459,5 +640,20 @@
   document.getElementById("result-close").addEventListener("click", closeResult);
   document.getElementById("record-close").addEventListener("click", closeRecord);
 
-  global.SafeDealChat = { openChat, openRecord, closeChat };
+  // 프로필/매물 카드
+  document.getElementById("card-start").addEventListener("click", startFromCard);
+  document.getElementById("card-cancel").addEventListener("click", closeCard);
+  document.getElementById("card-close").addEventListener("click", closeCard);
+  cardOverlay.addEventListener("click", (e) => { if (e.target === cardOverlay) closeCard(); });
+  // 카드가 열려 있을 때 키보드로도 시작/닫기 (게임 루프는 멈춰 있음)
+  window.addEventListener("keydown", (e) => {
+    if (cardOverlay.classList.contains("hidden")) return;
+    if (e.key === "Enter" || e.code === "KeyE" || e.code === "Space") {
+      e.preventDefault(); startFromCard();
+    } else if (e.key === "Escape") {
+      e.preventDefault(); closeCard();
+    }
+  });
+
+  global.SafeDealChat = { openCard, openChat, openRecord, closeChat };
 })(window);

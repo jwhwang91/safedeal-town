@@ -31,6 +31,12 @@ def _get_int(name: str, default: int) -> int:
         return default
 
 
+def _get_bool(name: str, default: bool) -> bool:
+    return _get(name, "true" if default else "false").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
 @dataclass(frozen=True)
 class Settings:
     # AI
@@ -56,6 +62,13 @@ class Settings:
     google_maps_api_key: str
     naver_map_client_id: str
     naver_map_client_secret: str
+
+    # 시장 데이터 제공자 (동적 매물 생성용)
+    # "synthetic" | "manual_import" | "trend_cache" | "official_stub"
+    market_listing_provider: str
+    market_import_path: Path
+    market_trend_cache_path: Path
+    allow_experimental_market_providers: bool
 
     # 서버
     host: str
@@ -118,6 +131,13 @@ def get_settings() -> Settings:
     if not db_path.is_absolute():
         db_path = BASE_DIR / db_path
 
+    import_path = Path(_get("MARKET_IMPORT_PATH", "runtime/imports/market_listings.json"))
+    if not import_path.is_absolute():
+        import_path = BASE_DIR / import_path
+    trend_path = Path(_get("MARKET_TREND_CACHE_PATH", "runtime/market_trends.json"))
+    if not trend_path.is_absolute():
+        trend_path = BASE_DIR / trend_path
+
     return Settings(
         ai_mode=_get("AI_MODE", "mock"),
         openai_api_key=_get("OPENAI_API_KEY", ""),
@@ -137,6 +157,12 @@ def get_settings() -> Settings:
         google_maps_api_key=_get("GOOGLE_MAPS_API_KEY", ""),
         naver_map_client_id=_get("NAVER_MAP_CLIENT_ID", ""),
         naver_map_client_secret=_get("NAVER_MAP_CLIENT_SECRET", ""),
+        market_listing_provider=_get("MARKET_LISTING_PROVIDER", "synthetic"),
+        market_import_path=import_path,
+        market_trend_cache_path=trend_path,
+        allow_experimental_market_providers=_get_bool(
+            "ALLOW_EXPERIMENTAL_MARKET_PROVIDERS", False
+        ),
         host=_get("HOST", "0.0.0.0"),
         port=_get_int("PORT", 8000),
         jwt_secret=_get("JWT_SECRET", "dev-insecure-secret-change-me"),

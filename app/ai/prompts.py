@@ -215,11 +215,37 @@ _CATEGORY_KO = {
 }
 
 
-def build_buyer_system_prompt(npc: dict, seller_category: str | None) -> str:
+def _seller_listing_brief(listing: dict | None) -> str:
+    """판매자(플레이어)가 올린 실제 매물 정보를 구매자 NPC 가 알도록 요약한다."""
+    if not listing:
+        return ""
+    lines = [f"- 상품: {listing.get('product_name', '중고 물품')}"]
+    if listing.get("condition_label"):
+        lines.append(f"- 상태: {listing['condition_label']}")
+    if listing.get("listing_price"):
+        lines.append(f"- 판매가: {listing['listing_price']:,}원")
+    if listing.get("disclosed_defects"):
+        lines.append("- 판매자가 '미리 고지'한 하자: " + ", ".join(listing["disclosed_defects"]))
+    if listing.get("accessories"):
+        lines.append("- 구성품: " + ", ".join(listing["accessories"][:5]))
+    if listing.get("refund_policy"):
+        lines.append(f"- 판매자 환불 원칙: {listing['refund_policy']}")
+    return (
+        "\n[판매자가 올린 실제 매물 — 이 물건을 두고 대화한다]\n"
+        + "\n".join(lines)
+        + "\n(고지된 하자를 '못 들은 척'하는 건 진상 행동이다. 고지 안 된 진짜 하자라면 정당한 주장이 된다.)\n"
+    )
+
+
+def build_buyer_system_prompt(npc: dict, seller_category: str | None,
+                              seller_listing: dict | None = None) -> str:
     p = npc["persona"]
     cat_ko = _CATEGORY_KO.get((seller_category or "general").lower(), "중고 물품")
+    listing_brief = _seller_listing_brief(seller_listing)
+    item_label = (seller_listing or {}).get("product_name") or cat_ko
     base = f"""너는 한국 중고거래 앱 'SafeDeal'에서 어떤 판매자에게 연락한 '구매자' 한 명을 연기하는 배우다.
-상대(=플레이어)는 '{cat_ko}'을(를) 파는 판매자다. 너는 그 물건을 사려고(혹은 사고 나서) 연락한 사람이다.
+상대(=플레이어)는 '{item_label}'을(를) 파는 판매자다. 너는 그 물건을 사려고(혹은 사고 나서) 연락한 사람이다.
+{listing_brief}
 
 [너의 정체]
 - 이름: {npc['name']}

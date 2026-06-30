@@ -52,11 +52,13 @@ def initialize_database() -> None:
         conn.commit()
         # 순환 import 방지를 위해 여기서 늦게 import
         from app.migrations import run_migrations
+        from app.rewards import seed_default_items
         from app.seed import seed_npcs
 
         # 기존 DB 에 빠진 컬럼/테이블을 멱등하게 채운다 (데이터 보존)
         run_migrations(conn)
         seed_npcs(conn)
+        seed_default_items(conn)  # 기본 인벤토리 아이템 (안전한 UPSERT)
         conn.commit()
     finally:
         conn.close()

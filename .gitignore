@@ -9,6 +9,12 @@ runtime/*.sqlite3-*
 *.sqlite3
 *.db
 
+# 수동 import / 트렌드 캐시 (런타임 데이터 — 예시(.example)만 커밋)
+runtime/imports/*.json
+runtime/imports/*.csv
+!runtime/imports/*.example.json
+runtime/market_trends.json
+
 # 파이썬
 __pycache__/
 *.py[cod]

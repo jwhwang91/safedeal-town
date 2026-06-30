@@ -59,12 +59,22 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "trade_sessions", "counterparty_kind", "counterparty_kind TEXT")
     _add_column_if_missing(conn, "trade_sessions", "scenario_type", "scenario_type TEXT")
     _add_column_if_missing(conn, "trade_sessions", "spawn_instance_id", "spawn_instance_id TEXT")
+    # 동적 NPC/매물 (정답지는 서버 전용 — 클라이언트로 직렬화되지 않음)
+    _add_column_if_missing(conn, "trade_sessions", "session_npc_json", "session_npc_json TEXT")
+    _add_column_if_missing(conn, "trade_sessions", "market_seed_json", "market_seed_json TEXT")
 
-    # ---- trade_results: 모드 구분 (전적실에서 버디 라벨을 올바로 보여주려고) ----
+    # ---- trade_results: 모드 구분 + 동적 NPC 기록 + 체크리스트/보상 ----
     _add_column_if_missing(
         conn, "trade_results", "game_role",
         "game_role TEXT NOT NULL DEFAULT 'buyer'",
     )
+    _add_column_if_missing(conn, "trade_results", "counterparty_name", "counterparty_name TEXT")
+    _add_column_if_missing(conn, "trade_results", "item_name", "item_name TEXT")
+    _add_column_if_missing(conn, "trade_results", "checklist_json", "checklist_json TEXT")
+    _add_column_if_missing(conn, "trade_results", "reward_items_json", "reward_items_json TEXT")
+
+    # ---- active_spawns: 동적 생성 NPC/매물 (공개 필드만 직렬화) ----
+    _add_column_if_missing(conn, "active_spawns", "dynamic_json", "dynamic_json TEXT")
 
     # ---- 활성 스폰 테이블 (백엔드가 NPC 등장/소멸을 관리) ----
     conn.execute(
@@ -100,6 +110,95 @@ def run_migrations(conn: sqlite3.Connection) -> None:
             map_json   TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+    # ---- 회원별 마켓 선호/판매글 ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_market_preferences (
+            user_id                INTEGER PRIMARY KEY,
+            buyer_category         TEXT,
+            buyer_price_preference TEXT,
+            buyer_trade_preference TEXT,
+            seller_listing_json    TEXT,
+            updated_at             TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+    # ---- 인벤토리: 아이템 정의 / 보유 / 장착 ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS items (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            item_type   TEXT NOT NULL,
+            rarity      TEXT NOT NULL,
+            slot        TEXT,
+            description TEXT,
+            effect_key  TEXT,
+            visual_json TEXT,
+            created_at  TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_items (
+            user_id     INTEGER NOT NULL,
+            item_id     TEXT NOT NULL,
+            quantity    INTEGER NOT NULL DEFAULT 1,
+            acquired_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, item_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_equipment (
+            user_id     INTEGER NOT NULL,
+            slot        TEXT NOT NULL,
+            item_id     TEXT NOT NULL,
+            equipped_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, slot),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_items_user ON user_items(user_id)"
+    )
+
+    # ---- (선택) 매물 씨앗 / 트렌드 캐시 (비식별 시장 맥락만) ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS market_listing_seeds (
+            id                TEXT PRIMARY KEY,
+            source_type       TEXT,
+            category          TEXT,
+            product_name      TEXT,
+            title_hint        TEXT,
+            price_hint        INTEGER,
+            market_price_hint INTEGER,
+            condition_hint    TEXT,
+            metadata_json     TEXT,
+            created_at        TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS market_trends (
+            id         TEXT PRIMARY KEY,
+            category   TEXT,
+            trend_json TEXT,
+            updated_at TEXT NOT NULL
         )
         """
     )

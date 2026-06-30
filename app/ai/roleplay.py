@@ -142,9 +142,11 @@ class SellerAgent(BaseRoleplayAgent):
 #  구매자 에이전트 (판매자 모드)
 # ============================================================
 class BuyerAgent(BaseRoleplayAgent):
-    def __init__(self, npc: dict, seller_category: str | None = None) -> None:
+    def __init__(self, npc: dict, seller_category: str | None = None,
+                 seller_listing: dict | None = None) -> None:
         self.seller_category = seller_category
-        super().__init__(npc, build_buyer_system_prompt(npc, seller_category))
+        self.seller_listing = seller_listing
+        super().__init__(npc, build_buyer_system_prompt(npc, seller_category, seller_listing))
 
     def opening(self) -> dict:
         op = build_buyer_opening(self.npc)

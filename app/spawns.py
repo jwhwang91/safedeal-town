@@ -57,8 +57,48 @@ def _allowed_difficulties(level: int) -> set[str]:
     return {"easy", "medium"}  # 1~2레벨: 아직 고난도(hard)는 등장하지 않음
 
 
+def _dynamic_of(row: sqlite3.Row) -> dict | None:
+    """active_spawns 행에 저장된 동적 NPC(JSON)를 파싱. 없거나 깨졌으면 None."""
+    raw = row["dynamic_json"] if "dynamic_json" in row.keys() else None
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
 def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> dict | None:
-    """active_spawns + npcs 조인해 공개 가능한 필드만 추린다."""
+    """active_spawns 의 공개 가능한 필드만 추린다 (동적 NPC 우선, 없으면 npcs 테이블)."""
+    remaining = max(0, int((_parse(row["expires_at"]) - now).total_seconds()))
+
+    # 동적 NPC 가 있으면 그걸로 공개 카드를 만든다 (정답지는 절대 미포함).
+    dyn = _dynamic_of(row)
+    if dyn:
+        npc_kind = dyn.get("npc_kind", "seller")
+        # 구매자 NPC 외형 테마는 역할과 무관하게 스폰별로 (정체 추리 보호).
+        if npc_kind == "buyer":
+            visual_theme = _buyer_theme_for(row["id"])
+        else:
+            visual_theme = dyn.get("visual_theme") or "general_booth"
+        return {
+            "spawn_instance_id": row["id"],
+            "npc_kind": npc_kind,
+            "name": dyn.get("name"),
+            "item_name": dyn.get("item_name"),
+            "item_category": dyn.get("item_category"),
+            "category": dyn.get("category") or "general",
+            "visual_theme": visual_theme,
+            "tagline": dyn.get("tagline") or dyn.get("item_name") or "",
+            "listing_price": dyn.get("listing_price", 0),
+            "sprite_color": dyn.get("sprite_color") or "#b0a080",
+            "x": row["x"],
+            "y": row["y"],
+            "remaining_seconds": remaining,
+        }
+
+    # 폴백: 정적 npcs 테이블 (동적 생성이 꺼졌거나 실패한 경우)
     npc = conn.execute(
         "SELECT id, name, item_name, item_category, listing_price, sprite_color, "
         "npc_kind, visual_theme, category FROM npcs WHERE id = ?",
@@ -66,7 +106,6 @@ def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> 
     ).fetchone()
     if not npc:
         return None
-    remaining = max(0, int((_parse(row["expires_at"]) - now).total_seconds()))
 
     # 정답지 보호:
     #  - npc_id 는 절대 내려보내지 않는다 (슬러그가 role/tactic 을 그대로 노출함).
@@ -160,6 +199,11 @@ def _fill(conn: sqlite3.Connection, user: sqlite3.Row, profile: dict, now: datet
     # 풀(고유 NPC 수)보다 많이 띄우고 싶으면, 같은 인물이 '다른 자리'에 한두 번 더
     # 나오도록 허용한다(자리는 항상 서로 다름). 넓어진 동네를 북적이게 채우기 위함.
     target = min(_TARGET_ACTIVE, len(spots))
+
+    # 채울 자리가 있을 때만 동적 생성 재료(선호/판매글/매물 씨앗)를 준비한다.
+    needed = max(0, target - len(active))
+    dyn_ctx = _dynamic_context(conn, user, game_role, needed) if needed else None
+
     guard = 0
     while len(active) < target and guard < 50:
         guard += 1
@@ -172,15 +216,61 @@ def _fill(conn: sqlite3.Connection, user: sqlite3.Row, profile: dict, now: datet
         spot = rnd.choice(free_spots)
         lifetime = rnd.randint(_LIFETIME_MIN, _LIFETIME_MAX)
         sid = str(uuid.uuid4())
+        # 동적 NPC(매물/페르소나/대사)를 만들어 저장한다. 실패하면 정적 NPC 로 폴백(NULL).
+        dynamic_json = _make_dynamic_json(npc_id, game_role, dyn_ctx, rnd)
         conn.execute(
             "INSERT INTO active_spawns (id, user_id, npc_id, game_role, x, y, "
-            "spawned_at, expires_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+            "spawned_at, expires_at, status, dynamic_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)",
             (sid, user["id"], npc_id, game_role, spot["x"], spot["y"],
-             now.isoformat(), (now + timedelta(seconds=lifetime)).isoformat()),
+             now.isoformat(), (now + timedelta(seconds=lifetime)).isoformat(),
+             dynamic_json),
         )
         use_count[npc_id] += 1
         used_xy.add((spot["x"], spot["y"]))
         active = _active_rows(conn, user["id"])
+
+
+def _dynamic_context(conn, user, game_role, needed: int) -> dict:
+    """동적 생성에 필요한 재료를 한 번만 모은다 (선호/판매글 + 매물 씨앗 배치)."""
+    from app import preferences as prefs_mgr
+
+    prefs = prefs_mgr.get_preferences(conn, user["id"])
+    seeds: list = []
+    if game_role != "seller":
+        try:
+            from app.market import fetch_seeds
+            seeds = fetch_seeds(prefs.get("buyer_category", "random"), limit=max(needed, 4))
+        except Exception:
+            seeds = []
+    return {"prefs": prefs, "seeds": seeds}
+
+
+def _make_dynamic_json(npc_id, game_role, ctx, rnd) -> str | None:
+    """앵커(npc_id)에 매물/페르소나를 입혀 동적 NPC JSON 을 만든다. 실패 시 None."""
+    if ctx is None:
+        return None
+    try:
+        from app.ai import persona_factory
+        from app.ai.personas import npc_by_id
+
+        anchor = npc_by_id(npc_id)
+        if not anchor:
+            return None
+        if game_role == "seller":
+            dyn = persona_factory.generate_buyer_npc_for_seller_mode(
+                anchor, ctx["prefs"].get("seller_listing"), rng=rnd
+            )
+        else:
+            seeds = ctx.get("seeds") or []
+            seed = seeds.pop() if seeds else None
+            dyn = persona_factory.generate_seller_npc_for_buyer_mode(
+                anchor, ctx["prefs"], listing_seed=seed, rng=rnd
+            )
+        return json.dumps(dyn, ensure_ascii=False)
+    except Exception:
+        # 동적 생성이 어떤 이유로든 실패해도 게임은 정적 NPC 로 계속된다.
+        return None
 
 
 def refresh_and_list(conn: sqlite3.Connection, user: sqlite3.Row, profile: dict) -> list[dict]:

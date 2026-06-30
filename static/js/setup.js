@@ -1,19 +1,21 @@
 /* ============================================================
-   setup.js — 입장 전 역할/아바타/카테고리 설정 화면
+   setup.js — 입장 전 역할/아바타/위시리스트/판매글 설정 화면
    - 역할: 구매자 / 판매자
    - 아바타: 피부/모자/상의/하의/액세서리
-   - 판매자면 판매 카테고리
+   - 구매자: '오늘 찾는 물건'(카테고리/가격민감도/거래방식)  → listing_setup.js
+   - 판매자: '내 판매글'(상품/상태/가격/구성품/하자/증거)      → listing_setup.js
    - (선택) 대략 위치로 마을 시드 만들기
-   저장은 /api/game/setup, 위치는 /api/game/location.
+   저장: /api/game/setup + /api/game/preferences 또는 /api/game/listing, 위치는 /location.
    ============================================================ */
 (function (global) {
   "use strict";
 
-  const screen = document.getElementById("setup-screen");
   const previewCanvas = document.getElementById("avatar-canvas");
   const controlsEl = document.getElementById("avatar-controls");
-  const catBlock = document.getElementById("category-block");
-  const catChoices = document.getElementById("cat-choices");
+  const buyerBlock = document.getElementById("buyer-wishlist-block");
+  const sellerBlock = document.getElementById("seller-listing-block");
+  const buyerWishlistEl = document.getElementById("buyer-wishlist");
+  const sellerListingEl = document.getElementById("seller-listing");
   const msgEl = document.getElementById("setup-msg");
   const saveBtn = document.getElementById("setup-save");
   const geoOptin = document.getElementById("geo-optin");
@@ -23,27 +25,18 @@
     skin: "피부", shirt: "상의", pants: "하의", hat: "모자", accessory: "액세서리",
   };
   const COLOR_GROUPS = { skin: "SKIN", shirt: "SHIRT", pants: "PANTS" };
-  const CATS = [
-    { key: "electronics", label: "전자제품", icon: "📱" },
-    { key: "camping", label: "캠핑", icon: "⛺" },
-    { key: "beauty", label: "뷰티", icon: "💄" },
-    { key: "home", label: "생활/가구", icon: "🛋️" },
-    { key: "fashion", label: "패션", icon: "👕" },
-    { key: "books", label: "도서", icon: "📚" },
-    { key: "general", label: "잡화", icon: "📦" },
-  ];
 
   let state = {
     game_role: "buyer",
     avatar: Object.assign({}, SafeDealAvatar.DEFAULT_AVATAR),
-    seller_category: "electronics",
+    preferences: null,
+    panelsBuilt: false,
   };
 
   /* ---------- 미리보기 ---------- */
   function drawPreview() {
     const ctx = previewCanvas.getContext("2d");
     ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-    // 부드러운 배경 원
     ctx.fillStyle = "#f0e3cc";
     ctx.beginPath();
     ctx.ellipse(60, 80, 46, 52, 0, 0, Math.PI * 2);
@@ -51,7 +44,7 @@
     SafeDealAvatar.draw(ctx, 60, 78, state.avatar, { scale: 2.1, facing: "down" });
   }
 
-  /* ---------- 아바타 컨트롤 만들기 ---------- */
+  /* ---------- 아바타 컨트롤 ---------- */
   function buildControls() {
     controlsEl.innerHTML = "";
     Object.keys(GROUP_LABELS).forEach((group) => {
@@ -90,29 +83,31 @@
     });
   }
 
-  /* ---------- 카테고리 만들기 ---------- */
-  function buildCategories() {
-    catChoices.innerHTML = "";
-    CATS.forEach((c) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "cat-btn" + (state.seller_category === c.key ? " active" : "");
-      b.dataset.key = c.key;
-      b.innerHTML = '<span class="cat-icon">' + c.icon + "</span>" + c.label;
-      b.addEventListener("click", () => {
-        state.seller_category = c.key;
-        catChoices.querySelectorAll(".cat-btn").forEach((x) => x.classList.remove("active"));
-        b.classList.add("active");
-      });
-      catChoices.appendChild(b);
-    });
+  /* ---------- 위시리스트 / 판매글 패널 ---------- */
+  async function ensureCatalog() {
+    if (SafeDealListingSetup.hasCatalog()) return true;
+    try {
+      const meta = await API.game.catalog();
+      SafeDealListingSetup.setCatalog(meta);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function buildPanels() {
+    const prefs = state.preferences || {};
+    SafeDealListingSetup.buildBuyer(buyerWishlistEl, prefs);
+    SafeDealListingSetup.buildSeller(sellerListingEl, prefs.seller_listing || {});
+    state.panelsBuilt = true;
   }
 
   /* ---------- 역할 ---------- */
   function applyRole(role) {
     state.game_role = role;
     roleBtns.forEach((b) => b.classList.toggle("active", b.dataset.role === role));
-    catBlock.style.display = role === "seller" ? "" : "none";
+    buyerBlock.style.display = role === "seller" ? "none" : "";
+    sellerBlock.style.display = role === "seller" ? "" : "none";
   }
   roleBtns.forEach((b) =>
     b.addEventListener("click", () => applyRole(b.dataset.role))
@@ -123,12 +118,11 @@
     return new Promise((resolve) => {
       if (!geoOptin.checked || !navigator.geolocation) return resolve(null);
       navigator.geolocation.getCurrentPosition(
-        // 정밀 좌표는 기기 밖으로 내보내지 않는다 — 보내기 전에 소수 2자리(약 1km)로 반올림.
         (pos) => resolve({
           lat: Math.round(pos.coords.latitude * 100) / 100,
           lng: Math.round(pos.coords.longitude * 100) / 100,
         }),
-        () => resolve(null), // 거부/실패 → 그냥 절차적 맵
+        () => resolve(null),
         { timeout: 6000, maximumAge: 600000 }
       );
     });
@@ -145,8 +139,18 @@
     setMsg("저장하는 중...", null);
     try {
       const payload = { game_role: state.game_role, avatar: state.avatar };
-      if (state.game_role === "seller") payload.seller_category = state.seller_category;
+      if (state.game_role === "seller") {
+        // 판매글 카테고리를 부스 카테고리로 환원하는 건 백엔드가 한다.
+        payload.seller_category = SafeDealListingSetup.getSeller().category;
+      }
       await API.game.saveSetup(payload);
+
+      // 역할별 추가 저장 (위시리스트 / 판매글)
+      if (state.game_role === "seller") {
+        await API.game.saveListing(SafeDealListingSetup.getSeller());
+      } else {
+        await API.game.savePreferences(SafeDealListingSetup.getBuyer());
+      }
 
       // 위치 동의 시 대략 좌표로 맵 시드 갱신 (거부해도 진행)
       const geo = await tryGeolocate();
@@ -166,19 +170,25 @@
   saveBtn.addEventListener("click", save);
 
   /* ---------- 열기 (main.js 가 호출) ---------- */
-  function open(prefill) {
+  async function open(prefill) {
     if (prefill) {
       if (prefill.game_role) state.game_role = prefill.game_role;
       if (prefill.avatar) state.avatar = Object.assign({}, SafeDealAvatar.DEFAULT_AVATAR, prefill.avatar);
-      if (prefill.seller_category) state.seller_category = prefill.seller_category;
+      if (prefill.preferences) state.preferences = prefill.preferences;
     }
-    applyRole(state.game_role);
+    SafeDeal.showScreen("setup");
     buildControls();
-    buildCategories();
     drawPreview();
     setMsg("", null);
     saveBtn.disabled = false;
-    SafeDeal.showScreen("setup");
+
+    const ok = await ensureCatalog();
+    if (ok) {
+      buildPanels();
+    } else {
+      setMsg("카탈로그를 불러오지 못했어요. 기본값으로 진행됩니다.", "error");
+    }
+    applyRole(state.game_role);
   }
 
   global.SafeDealSetup = { open };

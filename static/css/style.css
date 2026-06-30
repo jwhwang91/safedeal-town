@@ -204,6 +204,61 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 }
 
 /* ============================================================
+   프로필 / 매물 카드 (대화 전)
+   ============================================================ */
+.card-window {
+  width: min(440px, 94vw); max-height: 88vh; overflow-y: auto;
+  background: var(--parchment); border: 3px solid var(--ink);
+  border-radius: 20px; box-shadow: 0 14px 0 rgba(58,50,38,.3);
+}
+.card-header {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .9rem 1rem; background: var(--ink); color: var(--cream);
+}
+.card-avatar {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 2px solid var(--cream); background: var(--terracotta); flex-shrink: 0;
+}
+.card-id { flex: 1; }
+.card-id h3 { font-size: 1.15rem; color: var(--gold); }
+.card-id p { font-size: .76rem; color: #c3b8a1; }
+.card-profile {
+  display: flex; flex-wrap: wrap; gap: .35rem;
+  padding: .7rem 1rem 0;
+}
+.card-badge {
+  font-size: .74rem; background: #fff; border: 1.5px solid #e3d6ba;
+  border-radius: 14px; padding: .15rem .5rem; color: var(--ink-soft);
+}
+.card-listing {
+  margin: .7rem 1rem; padding: .8rem .9rem;
+  background: #fff7e6; border: 2px dashed var(--gold); border-radius: 14px;
+}
+.card-l-title { font-family: 'Jua', sans-serif; font-size: 1.05rem; margin-bottom: .3rem; }
+.card-l-price-row { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .5rem; }
+.card-l-price { font-family: 'Jua', sans-serif; font-size: 1.5rem; color: var(--terracotta); }
+.card-l-market { font-size: .78rem; color: var(--ink-soft); }
+.card-l-meta { display: flex; gap: .5rem; font-size: .82rem; padding: .15rem 0; }
+.card-l-k { color: var(--ink-soft); width: 5rem; flex-shrink: 0; }
+.card-l-desc {
+  margin-top: .5rem; font-size: .82rem; line-height: 1.5; color: var(--ink-soft);
+  background: #fffdf7; border-radius: 8px; padding: .5rem .6rem;
+}
+.card-radar {
+  margin-top: .5rem; font-size: .82rem; color: var(--danger);
+  background: #fdeceb; border: 1px solid var(--danger-soft);
+  border-radius: 8px; padding: .4rem .6rem;
+}
+.card-actions { display: flex; gap: .5rem; padding: 0 1rem 1.1rem; }
+.card-actions .btn-primary { flex: 1; }
+.btn-walk-card {
+  font-family: 'Jua', sans-serif; font-size: .95rem; cursor: pointer;
+  background: #f0e3cc; color: var(--ink); border: 2px solid var(--ink);
+  border-radius: var(--radius); padding: .85rem 1.1rem; box-shadow: var(--shadow-sm);
+}
+.btn-walk-card:active { transform: translateY(3px); box-shadow: none; }
+
+/* ============================================================
    채팅 창
    ============================================================ */
 .chat-window {
@@ -289,6 +344,42 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 }
 .chat-tip { color: var(--gold); }
 
+/* ---------- 거래 도구: 답변칩 + 체크리스트 ---------- */
+.chat-tools { margin-top: .5rem; }
+.chat-suggest { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .4rem; }
+.suggest-chip {
+  font-family: 'Gowun Dodum', sans-serif; font-size: .76rem; cursor: pointer;
+  background: #eef4fb; border: 1.5px solid #b9d0ea; color: #3a63b0;
+  border-radius: 14px; padding: .25rem .55rem;
+}
+.suggest-chip:hover { background: #e0ecfa; }
+.suggest-note { font-size: .7rem; color: var(--ink-soft); align-self: center; }
+.checklist-toggle {
+  width: 100%; font-family: 'Jua', sans-serif; font-size: .82rem; cursor: pointer;
+  background: #fff7e6; border: 2px solid var(--gold); color: var(--terracotta-dark);
+  border-radius: 10px; padding: .4rem;
+}
+.checklist-toggle.open { background: var(--gold); color: var(--ink); }
+.checklist-panel {
+  margin-top: .4rem; display: grid; grid-template-columns: 1fr 1fr; gap: .2rem .6rem;
+  background: #fffdf7; border: 1.5px solid #e3d6ba; border-radius: 10px; padding: .5rem .6rem;
+}
+.checklist-item {
+  display: flex; align-items: center; gap: .35rem; font-size: .8rem; cursor: pointer;
+  padding: .15rem 0;
+}
+.checklist-item.hot { color: var(--terracotta-dark); font-weight: 600; }
+.checklist-item input { accent-color: var(--sage); }
+.checklist-hot {
+  font-size: .62rem; background: var(--gold); color: var(--ink);
+  border-radius: 5px; padding: 0 .3rem; margin-left: auto;
+}
+.link-warning {
+  margin-top: .25rem; font-size: .76rem; color: var(--danger);
+  background: #fdeceb; border: 1px solid var(--danger-soft);
+  border-radius: 8px; padding: .25rem .5rem; max-width: 100%;
+}
+
 .decision-row { margin-top: .6rem; }
 .decision-label { font-size: .78rem; color: var(--ink-soft); text-align: center; margin-bottom: .35rem; }
 .decision-btns { display: flex; gap: .4rem; }
@@ -337,6 +428,26 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 .reward-chip.down { border-color: var(--danger-soft); color: var(--danger); }
 
 .result-section { padding: .9rem 1.2rem; border-bottom: 2px solid #e3d6ba; }
+
+/* 보상 아이템 (결과 모달) */
+.reward-items { display: flex; flex-direction: column; gap: .45rem; }
+.reward-item {
+  display: flex; gap: .6rem; align-items: flex-start;
+  background: #fff; border: 2px solid #e3d6ba; border-left-width: 5px;
+  border-radius: 10px; padding: .5rem .7rem;
+}
+.reward-item-ic { font-size: 1.5rem; }
+.reward-item-name { font-family: 'Jua', sans-serif; font-size: .95rem; }
+.reward-item-rarity { font-size: .68rem; padding: .05rem .4rem; border-radius: 6px; margin-left: .25rem; }
+.reward-item-desc { font-size: .78rem; color: var(--ink-soft); line-height: 1.45; }
+
+/* 거래 후 상황 */
+.aftermath-situation { font-size: .9rem; line-height: 1.6; }
+.aftermath-lesson {
+  margin-top: .5rem; font-size: .88rem; line-height: 1.6;
+  background: #fff7e6; border: 1px dashed var(--gold); border-radius: 10px; padding: .55rem .7rem;
+}
+.aftermath-lesson b { color: var(--terracotta-dark); }
 .result-section h4 { font-size: 1rem; margin-bottom: .5rem; }
 .result-section .hint { font-size: .76rem; color: var(--ink-soft); }
 .coaching-text {
@@ -484,6 +595,26 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 .cat-btn .cat-icon { font-size: 1rem; }
 .cat-btn.active { border-color: var(--terracotta); background: #fff7e6; color: var(--terracotta-dark); }
 
+/* ---------- 위시리스트 / 판매글 폼 (listing_setup.js) ---------- */
+.setup-hint { font-size: .78rem; color: var(--ink-soft); margin-bottom: .55rem; }
+.field { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .6rem; }
+.field-label { font-size: .8rem; color: var(--ink-soft); }
+.field-input {
+  font-family: 'Gowun Dodum', sans-serif; font-size: .9rem;
+  padding: .5rem .6rem; border: 2px solid #d8c9ad; border-radius: 10px;
+  background: #fffdf7; color: var(--ink); width: 100%;
+}
+.field-input:focus { outline: none; border-color: var(--terracotta); }
+.field-grid2 { display: flex; gap: .6rem; }
+.field-grid2 .field { flex: 1; }
+.chip-group { display: flex; flex-wrap: wrap; gap: .35rem; }
+.chip-toggle {
+  font-family: 'Gowun Dodum', sans-serif; font-size: .8rem; cursor: pointer;
+  padding: .35rem .6rem; border: 2px solid #d8c9ad; border-radius: 16px;
+  background: #fffdf7; color: var(--ink-soft);
+}
+.chip-toggle.on { border-color: var(--terracotta); background: #fff7e6; color: var(--terracotta-dark); }
+
 .setup-avatar { display: flex; gap: 1.2rem; align-items: flex-start; }
 .avatar-preview {
   flex-shrink: 0; background: #f0e3cc; border: 2px solid var(--ink);
@@ -535,3 +666,78 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
   background: #fff7e6; border: 1px dashed var(--gold); border-radius: 10px;
   color: var(--ink-soft);
 }
+
+/* ============================================================
+   거래 가방 (인벤토리)
+   ============================================================ */
+.inv-window {
+  width: min(620px, 96vw); max-height: 90vh; overflow-y: auto;
+  background: var(--parchment); border: 3px solid var(--ink);
+  border-radius: 20px; box-shadow: 0 14px 0 rgba(58,50,38,.3); padding-bottom: 1.2rem;
+}
+.inv-head-actions { display: flex; align-items: center; gap: .5rem; }
+.inv-hint { font-size: .8rem; color: var(--ink-soft); padding: .8rem 1.2rem 0; line-height: 1.5; }
+.inv-hint b { color: var(--terracotta-dark); }
+.inv-equipped { display: flex; flex-wrap: wrap; gap: .45rem; padding: .8rem 1.2rem .2rem; }
+.inv-empty-eq { font-size: .85rem; color: var(--ink-soft); }
+.inv-eq-chip {
+  display: flex; align-items: center; gap: .4rem;
+  background: #fff; border: 2px solid #e3d6ba; border-radius: 14px;
+  padding: .3rem .55rem; font-size: .82rem;
+}
+.inv-eq-slot { font-size: .68rem; color: #fff; background: var(--ink-soft); border-radius: 6px; padding: .05rem .35rem; }
+.inv-eq-x { background: transparent; border: none; cursor: pointer; color: var(--danger); font-size: .8rem; }
+.inv-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .6rem; padding: 0 1.2rem;
+}
+.inv-empty { grid-column: 1 / -1; color: var(--ink-soft); font-size: .87rem; padding: .6rem 0; }
+.inv-card {
+  background: #fff; border: 2px solid #e3d6ba; border-radius: 12px;
+  padding: .55rem .6rem; display: flex; flex-direction: column; gap: .25rem;
+  border-left-width: 5px;
+}
+.inv-card.equipped { box-shadow: 0 0 0 2px var(--gold); }
+.inv-card-top { display: flex; justify-content: space-between; align-items: center; }
+.inv-icon { font-size: 1.5rem; }
+.inv-rarity { font-size: .68rem; padding: .05rem .4rem; border-radius: 6px; }
+.inv-name { font-family: 'Jua', sans-serif; font-size: .92rem; }
+.inv-qty { color: var(--ink-soft); font-size: .78rem; }
+.inv-type { font-size: .72rem; color: var(--ink-soft); }
+.inv-desc { font-size: .74rem; color: var(--ink-soft); line-height: 1.4; flex: 1; }
+.inv-btn {
+  margin-top: .3rem; font-family: 'Jua', sans-serif; font-size: .82rem; cursor: pointer;
+  background: var(--sage); color: #fff; border: none; border-radius: 8px; padding: .35rem;
+}
+.inv-btn.on { background: #c9bca3; color: var(--ink); }
+
+/* 희귀도 색 (좌측 테두리 + 텍스트 칩) */
+.rarity-common    { border-left-color: #b0a895; }
+.rarity-uncommon  { border-left-color: var(--sage); }
+.rarity-rare      { border-left-color: #5b8def; }
+.rarity-epic      { border-left-color: #9b6ad6; }
+.rarity-legendary { border-left-color: var(--gold); }
+.rarity-text-common    { background: #ece6d8; color: #6f6353; }
+.rarity-text-uncommon  { background: #e3f0db; color: var(--sage-dark); }
+.rarity-text-rare      { background: #dde9fb; color: #3a63b0; }
+.rarity-text-epic      { background: #ece0fa; color: #6b3fae; }
+.rarity-text-legendary { background: #fbeecb; color: #a9791c; }
+.inv-eq-chip.rarity-common, .inv-eq-chip.rarity-uncommon, .inv-eq-chip.rarity-rare,
+.inv-eq-chip.rarity-epic, .inv-eq-chip.rarity-legendary { border-left-width: 4px; }
+
+/* ============================================================
+   거래 습관 리포트
+   ============================================================ */
+.habit-body { padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: .7rem; }
+.habit-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
+.habit-card {
+  background: #fff; border: 2px solid #e3d6ba; border-radius: 12px; padding: .7rem .85rem;
+  border-left-width: 5px;
+}
+.habit-card.good { border-left-color: var(--sage); }
+.habit-card.weak { border-left-color: var(--danger-soft); }
+.habit-card.next { border-left-color: var(--gold); }
+.habit-card h4 { font-size: .98rem; margin-bottom: .35rem; }
+.habit-card ul { margin: 0; padding-left: 1.1rem; }
+.habit-card li { font-size: .85rem; line-height: 1.55; }
+.habit-muted { color: var(--ink-soft); list-style: none; margin-left: -1.1rem; }

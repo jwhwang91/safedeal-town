@@ -68,6 +68,39 @@ class RoleSwitchRequest(BaseModel):
     game_role: Literal["buyer", "seller"]
 
 
+# ---------- 마켓 선호 / 판매글 ----------
+class BuyerPreferenceRequest(BaseModel):
+    """구매자 모드: 오늘 찾는 물건 (위시리스트)."""
+    buyer_category: str = Field(default="random", pattern=_KEY)
+    buyer_price_preference: str = Field(default="fair", pattern=_KEY)
+    buyer_trade_preference: str = Field(default="any", pattern=_KEY)
+
+
+class EquipRequest(BaseModel):
+    """인벤토리 아이템 장착."""
+    item_id: str = Field(min_length=1, max_length=60, pattern=r"^[A-Za-z0-9_]+$")
+    slot: str | None = Field(default=None, pattern=_KEY)
+
+
+class UnequipRequest(BaseModel):
+    """슬롯 비우기."""
+    slot: str = Field(pattern=_KEY)
+
+
+class SellerListingRequest(BaseModel):
+    """판매자 모드: 내가 파는 물건 (판매글)."""
+    category: str = Field(default="electronics", pattern=_KEY)
+    product_name: str = Field(min_length=1, max_length=60)
+    condition: str = Field(default="lightly_used", pattern=_KEY)
+    listing_price: int = Field(default=0, ge=0, le=100_000_000)
+    market_price: int = Field(default=0, ge=0, le=100_000_000)
+    disclosed_defects: list[str] = Field(default_factory=list, max_length=8)
+    accessories: list[str] = Field(default_factory=list, max_length=10)
+    trade_methods: list[str] = Field(default_factory=list, max_length=5)
+    refund_policy: str = Field(default="", max_length=200)
+    proof_prepared: list[str] = Field(default_factory=list, max_length=8)
+
+
 # ---------- 월드 / 위치 / 스폰 ----------
 class LocationRequest(BaseModel):
     """브라우저 지오로케이션을 대략값으로만 받는다 (정밀 위치 저장 안 함)."""
@@ -122,3 +155,5 @@ class ResolveTradeRequest(BaseModel):
         pattern=r"^(buy|walk_away|report|complete_sale|refuse_refund|"
         r"accept_refund|partial_refund|escalate_platform|cancel_trade)$"
     )
+    # 거래 체크리스트에서 사용자가 직접 체크한 항목 키 (선택). 올바른 결정일 때만 소폭 가점.
+    checklist: list[str] = Field(default_factory=list, max_length=12)

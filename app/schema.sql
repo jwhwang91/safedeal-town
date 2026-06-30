@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS trade_sessions (
     counterparty_kind TEXT,                       -- 상대 NPC 종류 (seller|buyer)
     scenario_type     TEXT,                       -- 시나리오 태그 (예: refund_villain)
     spawn_instance_id TEXT,                       -- 어느 스폰에서 시작했나 (선택)
+    session_npc_json  TEXT,                       -- 동적 생성된 NPC(정답지 포함, 서버 전용). 없으면 npcs 테이블 사용
+    market_seed_json  TEXT,                       -- 이 거래에 쓰인 매물 씨앗(비식별 시장 맥락)
     started_at      TEXT NOT NULL,
     ended_at        TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -100,6 +102,10 @@ CREATE TABLE IF NOT EXISTS trade_results (
     missed_flags_json   TEXT NOT NULL,            -- 놓친 위험신호
     coaching            TEXT NOT NULL,            -- 코치 AI 한마디
     xp_delta            INTEGER NOT NULL,
+    counterparty_name   TEXT,                     -- 상대 표시 이름 (동적 NPC 기록 보존용)
+    item_name           TEXT,                     -- 거래 물건 이름 (동적 NPC 기록 보존용)
+    checklist_json      TEXT,                     -- 플레이어가 체크한 거래 체크리스트 상태
+    reward_items_json   TEXT,                     -- 이 거래로 획득한 인벤토리 아이템(공개 정보)
     created_at          TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES trade_sessions(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)    REFERENCES users(id)          ON DELETE CASCADE
@@ -129,6 +135,7 @@ CREATE TABLE IF NOT EXISTS active_spawns (
     spawned_at  TEXT NOT NULL,
     expires_at  TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'expired' | 'engaged'
+    dynamic_json TEXT,                            -- 동적 생성 NPC/매물(정답지 포함, 서버 전용). 공개 필드만 직렬화됨
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (npc_id)  REFERENCES npcs(id)  ON DELETE CASCADE
 );
@@ -145,7 +152,76 @@ CREATE TABLE IF NOT EXISTS map_profiles (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- ----- 회원별 마켓 선호/판매글 (구매 위시리스트 + 판매자 매물) -----
+CREATE TABLE IF NOT EXISTS user_market_preferences (
+    user_id                INTEGER PRIMARY KEY,
+    buyer_category         TEXT,                  -- 구매자 모드: 오늘 찾는 카테고리
+    buyer_price_preference TEXT,                  -- bargain | fair | premium
+    buyer_trade_preference TEXT,                  -- direct | delivery | safepay | any
+    seller_listing_json    TEXT,                  -- 판매자 모드: 내 판매글(상품/상태/가격/구성품/증거)
+    updated_at             TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ----- 인벤토리 아이템 정의 (거래 도구/배지/코스튬) -----
+CREATE TABLE IF NOT EXISTS items (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    item_type   TEXT NOT NULL,                    -- cosmetic | badge | tool | profile_frame | checklist
+    rarity      TEXT NOT NULL,                    -- common | uncommon | rare | epic | legendary
+    slot        TEXT,                             -- hat | shirt | pants | accessory | badge | tool_1 | tool_2 | profile_frame
+    description TEXT,
+    effect_key  TEXT,                             -- 도구 효과 키 (price_radar 등). 코스튬/배지는 NULL 가능
+    visual_json TEXT,                             -- 렌더링 힌트 (코스튬: avatar slot/value 등)
+    created_at  TEXT NOT NULL
+);
+
+-- ----- 회원이 보유한 아이템 -----
+CREATE TABLE IF NOT EXISTS user_items (
+    user_id     INTEGER NOT NULL,
+    item_id     TEXT NOT NULL,
+    quantity    INTEGER NOT NULL DEFAULT 1,
+    acquired_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, item_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+);
+
+-- ----- 회원이 장착한 아이템 (슬롯당 하나) -----
+CREATE TABLE IF NOT EXISTS user_equipment (
+    user_id     INTEGER NOT NULL,
+    slot        TEXT NOT NULL,
+    item_id     TEXT NOT NULL,
+    equipped_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, slot),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+);
+
+-- ----- (선택) 매물 씨앗 캐시 — 비식별 시장 맥락만 저장 -----
+CREATE TABLE IF NOT EXISTS market_listing_seeds (
+    id                TEXT PRIMARY KEY,
+    source_type       TEXT,
+    category          TEXT,
+    product_name      TEXT,
+    title_hint        TEXT,
+    price_hint        INTEGER,
+    market_price_hint INTEGER,
+    condition_hint    TEXT,
+    metadata_json     TEXT,
+    created_at        TEXT NOT NULL
+);
+
+-- ----- (선택) 카테고리별 집계 트렌드 -----
+CREATE TABLE IF NOT EXISTS market_trends (
+    id         TEXT PRIMARY KEY,
+    category   TEXT,
+    trend_json TEXT,
+    updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_user    ON trade_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_results_user     ON trade_results(user_id);
 CREATE INDEX IF NOT EXISTS idx_spawns_user      ON active_spawns(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_items_user  ON user_items(user_id);

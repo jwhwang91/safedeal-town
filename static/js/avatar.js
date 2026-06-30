@@ -162,6 +162,14 @@
       ctx.arc(-9, -8, 1.6, 0, Math.PI * 2);
       ctx.fill();
     }
+    // 탐정 선글라스 (보상 코스튬)
+    if (avatar.accessory === "sunglasses") {
+      ctx.fillStyle = "#1c1c22";
+      roundRect(ctx, -7, -12, 6, 5, 1.6); ctx.fill();
+      roundRect(ctx, 1, -12, 6, 5, 1.6); ctx.fill();
+      ctx.strokeStyle = "#1c1c22"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(-1, -10); ctx.lineTo(1, -10); ctx.stroke();
+    }
 
     // 모자
     drawHat(ctx, avatar.hat, shirt);
@@ -194,6 +202,23 @@
     } else if (hat === "band") {
       ctx.fillStyle = "#d9744f";
       ctx.fillRect(-10, -16, 20, 3);
+    } else if (hat === "hood") {
+      // 베테랑 후드 (머리 위로 덮은 후드)
+      ctx.fillStyle = accentColor;
+      ctx.beginPath();
+      ctx.arc(0, -10, 13, Math.PI, 0);
+      ctx.lineTo(13, -7); ctx.lineTo(-13, -7); ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,.15)";
+      ctx.beginPath(); ctx.arc(0, -10, 9, Math.PI, 0); ctx.fill();
+    } else if (hat === "detective") {
+      // 장터 고수 모자 (디어스토커 느낌)
+      ctx.fillStyle = "#8a5a33";
+      ctx.fillRect(-13, -13, 26, 3);            // 챙
+      ctx.fillStyle = "#9b6a3c";
+      roundRect(ctx, -11, -22, 22, 10, 5); ctx.fill();  // 크라운
+      ctx.fillStyle = "#7a4d2a";
+      roundRect(ctx, -4, -25, 8, 5, 2); ctx.fill();     // 꼭지
     }
   }
 

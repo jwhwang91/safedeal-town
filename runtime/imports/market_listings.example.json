@@ -1,0 +1,24 @@
+{
+  "_comment": "수동 import 예시. 모든 행은 normalizer 가 개인정보(이름/전화/이메일/주소/계좌/URL)를 제거한 뒤에만 사용됩니다. 실제 게시글/사용자 정보를 넣지 마세요.",
+  "listings": [
+    {
+      "category": "스마트폰",
+      "product_name": "아이폰 14 128GB 판매 (판매자 홍길동 010-1234-5678)",
+      "price": "650000원",
+      "market_price": 780000,
+      "condition": "사용감 적음",
+      "defects": ["배터리 성능 저하"],
+      "accessories": "박스, 정품 충전기",
+      "region": "서울 강남구 역삼동 123-45",
+      "contact": "kakao id: seller_hong, 입금 국민 123456-78-901234",
+      "url": "https://example-market.com/item/9999"
+    },
+    {
+      "category": "캠핑",
+      "product_name": "4인용 텐트 john@example.com",
+      "price": 120000,
+      "condition": "B급",
+      "accessories": ["수납가방"]
+    }
+  ]
+}

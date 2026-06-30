@@ -110,6 +110,21 @@
     setRole(gameRole) {
       return request("/api/game/role", { method: "POST", body: { game_role: gameRole } });
     },
+    catalog() {
+      return request("/api/game/catalog");
+    },
+    getPreferences() {
+      return request("/api/game/preferences");
+    },
+    savePreferences(payload) {
+      return request("/api/game/preferences", { method: "POST", body: payload });
+    },
+    getListing() {
+      return request("/api/game/listing");
+    },
+    saveListing(listing) {
+      return request("/api/game/listing", { method: "POST", body: listing });
+    },
     spawns() {
       return request("/api/game/spawns");
     },
@@ -122,11 +137,32 @@
     leaderboard() {
       return request("/api/game/leaderboard");
     },
+    inventory() {
+      return request("/api/game/inventory");
+    },
+    equip(itemId, slot) {
+      return request("/api/game/equip", { method: "POST", body: { item_id: itemId, slot: slot || null } });
+    },
+    unequip(slot) {
+      return request("/api/game/unequip", { method: "POST", body: { slot } });
+    },
+    rewardsCatalog() {
+      return request("/api/game/rewards/catalog");
+    },
+    habitReport() {
+      return request("/api/game/habit-report");
+    },
   };
 
   /* ---------- 채팅(거래) ---------- */
   const chat = {
     // 정답지 보호: 클라이언트는 spawn_instance_id 만 안다. 서버가 npc_id 로 매핑한다.
+    card(spawnInstanceId) {
+      return request("/api/chat/card", {
+        method: "POST",
+        body: { spawn_instance_id: spawnInstanceId || null },
+      });
+    },
     start(spawnInstanceId) {
       return request("/api/chat/start", {
         method: "POST",
@@ -145,10 +181,10 @@
         body: { session_id: sessionId, message_id: messageId, flagged },
       });
     },
-    resolve(sessionId, decision) {
+    resolve(sessionId, decision, checklist) {
       return request("/api/chat/resolve", {
         method: "POST",
-        body: { session_id: sessionId, decision },
+        body: { session_id: sessionId, decision, checklist: checklist || [] },
       });
     },
   };
