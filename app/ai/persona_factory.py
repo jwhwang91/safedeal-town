@@ -126,6 +126,12 @@ _BUYER_OPENINGS = {
     "ghosting_buyer": "{item} 아직 있나요? 상태 어때요? 가격 더 되나요? 직거래 어디서 해요?",
     "risky_buyer": "{item} 보고 연락드려요~ 수수료 아깝잖아요, 그냥 제 계좌로 바로 보낼게요!",
     "legit_claim_buyer": "받은 {item} 잘 쓰려는데요, 설명에 없던 하자가 있어서요. 어떻게 해결하면 좋을까요?",
+    # 방어 훈련용 위험 구매자 (추상적·비실행적)
+    "private_contact_buyer": "{item} 문의드려요! 근데 여기 채팅 불편한데 개인 연락처로 얘기하면 안 될까요?",
+    "romantic_pressure_buyer": "{item} 보고 왔는데.. 사진 보니까 되게 제 스타일이라서요 ㅎㅎ",
+    "voice_phishing_buyer": "{item} 구매 전에 안전 확인이 필요하대요. 본인 인증 한 번만 해주시겠어요?",
+    "social_engineering_buyer": "{item} 정말 급해서요.. 사정이 딱해서 그런데 절차 좀 빼고 빨리 진행해주시면 안 될까요?",
+    "harasser_buyer": "{item} 문의요. 웬만하면 제 요구대로 맞춰주셨으면 하는데요.",
 }
 
 
@@ -174,6 +180,13 @@ def build_mock_lines_for_listing(persona: dict, listing: dict, role: str,
             "off_platform_link": "안전결제 링크 보내드릴게요. 여기 들어가서 결제하시면 됩니다 → safe-pay-deal[.]example/pay",
             "delivery_fee_link": "발송 접수했어요. 택배비랑 주소 확인만 이 링크에서 해주시면 송장 떠요 → track-fix[.]example/o12",
             "third_party_account": f"제 계좌가 지금 막혀서요.. {bank} 가족 명의 계좌로 보내주셔도 돼요.",
+            # 사적 접근/로맨스/보이스피싱류 (추상적·비실행적: 실제 링크/계좌/전화번호 없음)
+            "private_contact_push": "앱 채팅은 좀 불편한데.. 혹시 개인적으로 연락해서 얘기하면 안 될까요?",
+            "relationship_lure": "물건보다 대화가 잘 통해서요 ㅎㅎ 우리 따로 친하게 지내요~",
+            "romantic_pressure": "실례지만 되게 괜찮은 분 같아서요.. 혹시 애인 있으세요? 목소리도 궁금하네요.",
+            "voice_call_pressure": "글로 하니까 너무 느려요~ 그냥 전화로 빨리 얘기해요. 통화가 편하잖아요.",
+            "phishing_pretext": "거래 전에 본인 확인이 필요하대요. 외부에서 인증 한 번만 해주시면 바로 진행돼요.",
+            "identity_trust_manip": "사실 제가 요즘 좀 외롭고 힘들어서요.. 좋은 분 같으니 그냥 믿고 거래해요, 네?",
             "fallback": "에이 너무 의심하시네요 ㅎㅎ 그냥 빨리 진행하시죠. 다른 분 기다리세요.",
         }
         return lines
@@ -230,6 +243,12 @@ def build_mock_lines_for_buyer(listing: dict | None, role: str) -> dict:
         "off_platform_pay": "안전결제는 수수료 아깝잖아요. 그냥 계좌로 바로 보낼게요!",
         "risky_pickup": "직거래면 오늘 밤 늦게 골목 안쪽에서 봐요. 친구가 대신 받으러 갈게요.",
         "ghosting": f"{item} 음.. 좀 더 생각해볼게요. 근데 위치가 어디라구요?",
+        # 사적 연락/로맨스/외부 인증/괴롭힘 (추상적·비실행적: 실제 링크/계좌/전화번호 없음)
+        "private_contact_pressure": "여기 채팅 불편한데 개인 연락처로 얘기하면 안 될까요? 그게 편하잖아요.",
+        "romantic_boundary_violation": f"{item}는 나중에 보고요, 혹시 애인 있으세요? 따로 연락해요 우리.",
+        "voice_phishing_like": "결제 확인 때문에 외부에서 인증만 한 번 해주시면 돼요. 개인정보 조금만 확인할게요.",
+        "social_engineering_pressure": "제가 사정이 너무 급해서요.. 그냥 절차 생략하고 빨리 진행해주시면 안 될까요?",
+        "harassment_after_refusal": "거절이요? 그쪽 장사 이렇게 해요? 계속 이러면 저도 가만 안 있어요.",
         "agree": f"네, 설명 들으니 믿음이 가네요. 그 가격에 안전결제로 진행할게요!",
         "fallback": polite_fallback if role in ("honest_buyer", "legit_claim_buyer") else pushy_fallback,
     }

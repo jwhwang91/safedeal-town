@@ -142,6 +142,51 @@ BUYER_PATTERNS: list[dict] = [
         "설명이 오락가락하면 실물·사진으로 다시 확인하고 안 맞으면 보류한다.",
         3, ["상태·구성품 설명이 앞뒤가 안 맞는다"],
     ),
+    # ---- 방어 훈련: 사적 접근/로맨스/보이스피싱 계열 (추상적·비실행적) ----
+    _buyer(
+        "personal_contact_grooming", "private_contact_pivot", "개인 연락 유도(그루밍)",
+        "거래를 앱 밖 개인 연락으로 옮기려 함",
+        "대화·거래는 앱 안에서만. 개인 연락 요구는 정중히 거절하고 상품 확인에 집중한다.",
+        4, ["앱 채팅이 불편하다며 개인 연락처를 슬쩍 묻는다",
+            "친근하게 다가와 앱 밖으로 대화를 옮기려 한다"],
+        extra_forbidden=["real contact details", "grooming or coercion scripts"],
+    ),
+    _buyer(
+        "romantic_boundary_pressure", "romance_pressure", "로맨틱 경계 압박",
+        "거래와 무관한 로맨틱/호감 발언으로 경계를 넘음",
+        "불편하면 분명히 선을 긋고 거래 얘기로 되돌린다. 심하면 대화를 중단·차단·신고한다.",
+        3, ["상품보다 사람에 관심을 보이며 호감·데이트성 발언을 한다"],
+        extra_forbidden=["sexual content", "romance-scam playbook"],
+    ),
+    _buyer(
+        "off_platform_relationship_lure", "private_contact_pivot", "앱 밖 관계 유도",
+        "상품 검증 대신 사적 친분·앱 밖 관계로 유도",
+        "거래는 상품·조건 중심으로만. 사적 친분 제안엔 선을 긋고 확인 절차를 지킨다.",
+        3, ["따로 친해지자며 앱 밖 관계로 데려가려 한다"],
+        extra_forbidden=["real contact details", "off-platform luring scripts"],
+    ),
+    _buyer(
+        "phishing_pretext", "phishing_pretext", "외부 인증 핑계",
+        "인증·확인을 핑계로 앱 밖 절차/링크로 유도",
+        "외부 인증·링크는 누르지 않고 개인정보를 넘기지 않는다. 앱 공식 절차만 쓴다.",
+        5, ["본인확인·결제확인을 핑계로 '외부에서 확인만' 하라고 한다"],
+        extra_forbidden=["real phishing links", "credential harvesting steps",
+                         "fake verification pages"],
+    ),
+    _buyer(
+        "voice_call_pressure", "voice_phishing", "통화 압박",
+        "불필요하게 앱 밖 통화를 급히 요구",
+        "불필요한 통화는 피하고, 기록이 남는 앱 채팅으로 확인한다.",
+        3, ["'글은 느리다'며 급하게 전화로 넘어가자고 압박한다"],
+        extra_forbidden=["real phone numbers", "voice phishing script"],
+    ),
+    _buyer(
+        "identity_trust_manipulation", "emotional_trust_manipulation", "감정적 신뢰 조작",
+        "상품 근거 대신 감정적 신뢰로 판단하게 유도",
+        "감정과 거래는 분리한다. 판단 근거는 상품·사진·플랫폼 절차여야 한다.",
+        3, ["외로움·개인사·가족 이야기로 정을 쌓아 검증을 건너뛰게 한다"],
+        extra_forbidden=["exploitative emotional-manipulation scripts"],
+    ),
 ]
 
 
@@ -221,6 +266,43 @@ SELLER_PATTERNS: list[dict] = [
         "고지를 빠뜨린 진짜 하자라면 발뺌하지 말고 부분환불/환불/플랫폼 절차로 합리적으로 해결한다.",
         2, ["고지되지 않은 진짜 하자를 정중하게 알리고 합리적 해결을 요청한다"],
     ),
+    # ---- 방어 훈련: 위험 구매자의 사적 연락/로맨스/외부 인증/괴롭힘 (추상적·비실행적) ----
+    _seller(
+        "buyer_private_contact_pressure", "private_contact_pivot", "사적 연락 요구",
+        "거래를 앱 밖 개인 연락으로 옮기려 함",
+        "대화·거래는 앱 안에서만 한다고 분명히 안내하고 상품/거래 얘기로 되돌린다.",
+        4, ["거래에 불필요한 개인 연락처·외부 메신저로 옮기자고 요구한다"],
+        extra_forbidden=["real contact details", "off-platform luring scripts"],
+    ),
+    _seller(
+        "buyer_romantic_boundary_violation", "romance_pressure", "로맨틱 경계 침해",
+        "거래와 무관한 사적/로맨틱 발언으로 불쾌하게 함",
+        "정중히 선을 긋고 거래 주제로 돌아온다. 계속되면 대화 중단·차단·신고를 고려한다.",
+        4, ["거래와 무관한 사적·로맨틱 발언을 하고, 거절 후에도 집요하다"],
+        extra_forbidden=["sexual content", "harassment escalation", "romance-scam playbook"],
+    ),
+    _seller(
+        "buyer_phishing_like_request", "phishing_pretext", "외부 인증 유도",
+        "인증·확인 명목으로 앱 밖 절차/개인정보를 요구",
+        "외부 인증에 응하지 않고 개인정보를 넘기지 않는다. 플랫폼 공식 절차만 이용한다.",
+        5, ["본인확인·결제확인을 핑계로 앱 밖 인증/개인정보를 요구한다"],
+        extra_forbidden=["real phishing links", "credential harvesting steps",
+                         "voice phishing script", "fake verification pages"],
+    ),
+    _seller(
+        "buyer_social_engineering_pressure", "social_engineering", "감정·긴박 압박",
+        "감정·긴박함으로 안전 절차를 건너뛰게 압박",
+        "사정은 공감하되 기준·절차는 그대로. 근거와 기록 중심으로 일관되게 대응한다.",
+        3, ["딱한 사정·급함을 앞세워 안전 규칙을 건너뛰게 만들려 한다"],
+        extra_forbidden=["coercive social-engineering scripts"],
+    ),
+    _seller(
+        "buyer_harassment_after_refusal", "harassment", "거절 후 괴롭힘",
+        "거절 후 무례·집요하게 압박함",
+        "감정적으로 맞받지 말고 침착하게. 기록을 남기고 신고·차단을 고려한다.",
+        4, ["요구를 거절하자 무례·집요하게 몰아붙인다"],
+        extra_forbidden=["threats or intimidation scripts", "harassment escalation"],
+    ),
 ]
 
 
@@ -245,6 +327,13 @@ TACTIC_TO_PATTERN_KEY: dict[str, str] = {
     "delivery_fee_link": "buyer_delivery_fee_link",
     "third_party_account": "buyer_third_party_account",
     "trust_building": "buyer_trust_building",
+    # 방어 훈련: 사적 접근/로맨스/보이스피싱 계열
+    "private_contact_push": "personal_contact_grooming",
+    "relationship_lure": "off_platform_relationship_lure",
+    "romantic_pressure": "romantic_boundary_pressure",
+    "voice_call_pressure": "voice_call_pressure",
+    "phishing_pretext": "phishing_pretext",
+    "identity_trust_manip": "identity_trust_manipulation",
 }
 
 # personas.py 의 BUYER_BEHAVIORS(판매자 모드 구매자 행동) → 분류표 키
@@ -261,6 +350,12 @@ BEHAVIOR_TO_PATTERN_KEY: dict[str, str] = {
     "excessive_lowball": "seller_excessive_lowball",
     "ghosting": "seller_ghosting",
     "legit_defect_claim": "seller_legit_defect_claim",
+    # 방어 훈련: 사적 연락/로맨스/외부 인증/괴롭힘 계열
+    "private_contact_pressure": "buyer_private_contact_pressure",
+    "romantic_boundary_violation": "buyer_romantic_boundary_violation",
+    "voice_phishing_like": "buyer_phishing_like_request",
+    "social_engineering_pressure": "buyer_social_engineering_pressure",
+    "harassment_after_refusal": "buyer_harassment_after_refusal",
 }
 
 
@@ -326,6 +421,12 @@ _BUYER_KIND_BY_ROLE = {
     "ghosting_buyer": "ghosting_buyer",
     "risky_buyer": "risky_buyer",
     "legit_claim_buyer": "legitimate_claim_buyer",
+    # 방어 훈련 위험 구매자 계열
+    "private_contact_buyer": "private_contact_buyer",
+    "romantic_pressure_buyer": "romantic_pressure_buyer",
+    "voice_phishing_buyer": "voice_phishing_buyer",
+    "social_engineering_buyer": "social_engineering_buyer",
+    "harasser_buyer": "harasser_buyer",
 }
 
 

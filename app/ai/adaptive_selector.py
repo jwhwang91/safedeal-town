@@ -35,6 +35,14 @@ _CANDIDATES_BY_COUNTERPARTY: dict[str, list[str]] = {
     "risky_buyer": ["seller_off_platform_pay", "seller_risky_pickup"],
     "legitimate_claim_buyer": ["seller_legit_defect_claim"],
     "honest_buyer": [],
+    # 방어 훈련 위험 구매자 계열 (사적 연락/로맨스/외부 인증/괴롭힘)
+    "private_contact_buyer": ["buyer_private_contact_pressure"],
+    "romantic_pressure_buyer": [
+        "buyer_romantic_boundary_violation", "buyer_harassment_after_refusal",
+    ],
+    "voice_phishing_buyer": ["buyer_phishing_like_request"],
+    "social_engineering_buyer": ["buyer_social_engineering_pressure"],
+    "harasser_buyer": ["buyer_harassment_after_refusal"],
 }
 
 

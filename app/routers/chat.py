@@ -97,6 +97,12 @@ _BUYER_TYPE_LABEL = {
     "ghosting_buyer": "잠수러",
     "risky_buyer": "위험거래 유도형",
     "legit_claim_buyer": "정당한 하자 주장 구매자",
+    # 방어 훈련 위험 구매자 계열
+    "private_contact_buyer": "사적 연락 요구형",
+    "romantic_pressure_buyer": "로맨틱 경계 침해형",
+    "voice_phishing_buyer": "외부 인증 유도형",
+    "social_engineering_buyer": "감정·긴박 압박형",
+    "harasser_buyer": "거절 후 공격형",
 }
 
 
@@ -114,6 +120,8 @@ _DIFF_REWARD = {"easy": 20, "medium": 35, "hard": 55}
 def _economy_delta(mode: str, verdict: str, correct: bool, npc: dict):
     """거래 결과 → (coin_delta, 획득아이템명|None, 아이템상실여부)."""
     reward = _DIFF_REWARD.get((npc.get("difficulty") or "medium"), 35)
+    if verdict == "player_misconduct":  # 플레이어 본인 부적절 행위 → 손해(양쪽 모드)
+        return -round(reward * 0.6), None, False
     if mode == "buyer":
         if verdict == "safe":          # 정상 판매자에게 구매 성공 → 물건 획득 + 코인
             return reward, npc["item_name"], False
@@ -673,6 +681,7 @@ def _resolve_buyer_mode(conn, user, sess, npc, transcript, decision, checklist=N
 
     trust_delta = {
         "good_catch": 6, "safe": 4, "missed_deal": -3, "scammed": -15,
+        "player_misconduct": -12,
     }.get(result["verdict"], 0)
 
     coin_delta, gain_item, lose_item = _economy_delta("buyer", result["verdict"], correct, npc)
@@ -730,7 +739,7 @@ def _resolve_seller_mode(conn, user, sess, npc, transcript, decision, checklist=
         "fair_sale": 4, "handled_refund_villain": 6, "handled_lowballer": 5,
         "handled_risky": 6, "ok_walkaway": 3,
         "over_refunded": -6, "unsafe_response": -10, "lost_sale": -3,
-        "missed_legitimate_claim": -6,
+        "missed_legitimate_claim": -6, "player_misconduct": -12,
     }.get(result["verdict"], 0)
 
     coin_delta, gain_item, lose_item = _economy_delta("seller", result["verdict"], correct, npc)
