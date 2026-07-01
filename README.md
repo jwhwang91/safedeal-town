@@ -159,10 +159,12 @@ NPC 매물은 '시장 맥락 제공자'로 생성됩니다. `.env` 의 `MARKET_L
 ### DB / API
 - 테이블: `user_active_missions` (UUID id, `mission_json`/`reward_json` 은 TEXT-JSON, ISO-8601 UTC 타임스탬프,
   `CREATE TABLE IF NOT EXISTS` 로 멱등 생성 — 기존 데이터에 영향 없음). `trade_sessions` 에도
-  `active_mission_id` 컬럼이 (멱등) 추가됩니다.
+  `active_mission_id` 컬럼이, `chat_messages` 에도 `image_data_uri` 컬럼이 (멱등) 추가됩니다
+  (`proof_first_buyer` 미션이 생성한 인증사진 저장용 — 아래 "미션 인증사진 생성" 참고).
 - API: `GET/POST /api/game/missions/available·accept·skip·active·clear-current` (모두 `app/routers/game.py`,
   로그인 사용자 본인 것만 조회/조작 가능). `/api/chat/start` 응답에 `mission`(연결된 활성 미션),
-  `/api/chat/resolve` 응답에 `mission`(채점 결과: 성공여부/사유/교훈/보너스/획득 배지)이 추가됩니다.
+  `/api/chat/message` 응답에 `reply.image_data_uri`(생성됐을 때만), `/api/chat/resolve` 응답에
+  `mission`(채점 결과: 성공여부/사유/교훈/보너스/획득 배지)이 추가됩니다.
 - 적응형 엔진 연동은 아직 하지 않습니다 — 다만 `mission_key`/`status`/타임스탬프가 `user_active_missions` 에
   누적 저장되므로, 나중에 "직거래 과의존 시 택배 미션을 더 자주 제안" 같은 적응형 로직을 얹을 수 있는
   기반 데이터는 이미 쌓입니다.
@@ -262,6 +264,33 @@ CLAUDE_CODE_TIMEOUT_SECONDS=60
 
 내부적으로 채팅 UI 는 응답 출처(mock/openai/local_claude)를 전혀 모릅니다 — `app/ai/provider.py` 가 추상화합니다.
 
+### 미션 인증사진 생성 (`proof_first_buyer`, openai 모드 전용)
+
+`실물 인증 받고 구매하기`(`proof_first_buyer`) 미션은 구매자가 판매자에게 실물/날짜 인증사진을
+요청하는 습관을 훈련합니다. 이 사진은 `AI_MODE=openai` 일 때만 **OpenAI Images API**
+(`app/ai/image_gen.py`)로 실제 생성됩니다 — `Settings.photo_generation_available` 이
+mock/local_claude 에서는 항상 false 이므로, 그런 환경에서는 이 미션 자체가 목록/제안/직접
+수락 어디에서도 노출되지 않습니다(`app/missions.py` 의 카탈로그 필터링 + `POST
+/api/game/missions/accept` 의 서버 측 재검증).
+
+```ini
+OPENAI_IMAGE_MODEL=gpt-image-1          # 선택, 기본값
+OPENAI_IMAGE_TIMEOUT_SECONDS=45         # 선택, 기본값 (OPENAI_API_KEY 는 위 openai 설정과 공유)
+```
+
+- 세션당 **최대 한 장**만 생성합니다(비용/스팸 방지) — 플레이어가 사진/인증을 요청하는 것처럼
+  보이는 메시지(`missions.looks_like_proof_request`, 미션 채점과 동일한 키워드 기준)를 보낸
+  다음 NPC 답장에 한 번만 붙습니다.
+- 이미지는 파일로 저장하지 않고 **data URI(base64)** 로 `chat_messages.image_data_uri` 에
+  저장해 채팅/결과 모달(대화 다시 보기)에 그대로 렌더링합니다.
+- 생성 실패(키 없음/네트워크 오류/타임아웃/거부 등)는 **항상 조용히 무시**되고 텍스트만으로
+  대화가 계속됩니다 — 이미지 생성은 절대 거래 흐름을 막지 않습니다.
+- 프롬프트에는 실제 사람 얼굴·신분증/서류·화폐·바코드/QR·읽을 수 있는 실제 브랜드 로고/일련번호를
+  **명시적으로 금지**합니다(허구의 훈련 콘텐츠임을 매번 프롬프트에 포함).
+- 사진이 왔다고 해서 거래가 안전하다는 뜻은 아닙니다 — 실제로도 사기꾼이 도용한 사진을
+  보여주는 경우가 있으므로, 채점(`evaluate_mission_completion`)은 여전히 "요청했는가"와
+  기존 심판(JudgeAgent)의 판정만 봅니다. 사진 자체의 내용은 채점에 쓰이지 않습니다.
+
 ---
 
 ## 맵 제공자 (procedural / google / naver)
@@ -332,6 +361,7 @@ safedeal-town/
 │     ├─ prompts.py       역할극/심판 프롬프트 (인젝션 방어 + 판매글 인지)
 │     ├─ provider.py      제공자 라우팅 (mock/openai/local_claude)
 │     ├─ llm_client.py    OpenAI 호환 API 래퍼
+│     ├─ image_gen.py     미션 인증사진 생성 (OpenAI Images API, openai 모드 전용)  ★신규
 │     ├─ local_claude_adapter.py  로컬 CLI 어댑터
 │     ├─ roleplay.py      BaseRoleplayAgent / SellerAgent / BuyerAgent (판매글 인지)
 │     ├─ seller_agent.py  하위호환 재노출 shim
@@ -418,17 +448,21 @@ safedeal-town/
 30. HUD 미션 칩 → 펼치기 → **미션 포기** 버튼으로 언제든 미션을 취소할 수 있다.
 31. 미션은 NPC 의 숨은 역할/수법을 전혀 노출하지 않는다 (미션 카드/HUD/결과 어디에도 정답지 없음).
 32. `python run.py` 재시작 후에도 기존 계정/거래 기록이 보존되고 `user_active_missions` 테이블이 생성돼 있다.
+33. `AI_MODE=mock` 또는 `local_claude` 에서는 `proof_first_buyer` 미션이 목록/제안/직접 수락(400) 어디서도 노출되지 않는다.
+34. `AI_MODE=openai` + 유효한 `OPENAI_API_KEY` 로 `proof_first_buyer` 를 수락하고 대화에서 실물/인증사진을
+    요청하면, NPC 답장에 **실제 생성된 인증사진**이 한 번(세션당 최대 1장) 붙고 결과 모달의
+    "대화 다시 보기"에도 남는다. 키가 없거나 이미지 생성이 실패해도 채팅/채점은 그대로 계속된다.
 
 ### 적응형 엔진 점검
-33. 구매자 모드 한 판을 마치면 `ai_session_outcomes` 에 행이 생기고 `ai_user_training_memory` 가 갱신된다.
-34. 여러 판을 더 하면 셀렉터가 **숙달·최근 패턴은 덜**, **약한 패턴은 더** 고른다.
-35. 판매자 모드 패턴은 구매자 모드와 **분리 저장**된다(`game_role` 구분).
-36. 📒 전적실 → **🎓 실력 분석** 에 모드별 강점/약점/추천/숙련도가 보인다.
-37. `ADAPTIVE_SCENARIOS_ENABLED=false` 면 게임이 **이전과 동일**하게 동작(적응형 기록 없음).
-38. `STORE_REDACTED_TRANSCRIPTS=true` 로 두고 채팅에 전화/이메일/URL 을 입력하면 저장된 대화가 **비식별화**된다.
-39. `AI_MODE=local_claude` 에서 CLI 실패 시에도 게임/적응형 기록이 **mock 폴백**으로 이어진다.
-40. 프론트는 **결과 화면 이전에 숨은 역할/수법/패턴 키를 받지 않는다**(개발자도구로도 안 보임).
-41. **♻️ 메모리 초기화** 또는 `POST /api/game/training-profile/reset` 후 적응형 데이터만 지워지고 **계정·거래 기록은 유지**된다.
+35. 구매자 모드 한 판을 마치면 `ai_session_outcomes` 에 행이 생기고 `ai_user_training_memory` 가 갱신된다.
+36. 여러 판을 더 하면 셀렉터가 **숙달·최근 패턴은 덜**, **약한 패턴은 더** 고른다.
+37. 판매자 모드 패턴은 구매자 모드와 **분리 저장**된다(`game_role` 구분).
+38. 📒 전적실 → **🎓 실력 분석** 에 모드별 강점/약점/추천/숙련도가 보인다.
+39. `ADAPTIVE_SCENARIOS_ENABLED=false` 면 게임이 **이전과 동일**하게 동작(적응형 기록 없음).
+40. `STORE_REDACTED_TRANSCRIPTS=true` 로 두고 채팅에 전화/이메일/URL 을 입력하면 저장된 대화가 **비식별화**된다.
+41. `AI_MODE=local_claude` 에서 CLI 실패 시에도 게임/적응형 기록이 **mock 폴백**으로 이어진다.
+42. 프론트는 **결과 화면 이전에 숨은 역할/수법/패턴 키를 받지 않는다**(개발자도구로도 안 보임).
+43. **♻️ 메모리 초기화** 또는 `POST /api/game/training-profile/reset` 후 적응형 데이터만 지워지고 **계정·거래 기록은 유지**된다.
 
 빠른 자동 점검(선택):
 ```bash

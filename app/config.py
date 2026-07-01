@@ -45,6 +45,8 @@ class Settings:
     openai_base_url: str
     openai_chat_model: str
     openai_judge_model: str
+    openai_image_model: str      # 미션 인증사진 생성용 (photo_generation_available 일 때만 호출)
+    openai_image_timeout_seconds: int
 
     # 로컬 Claude Code(또는 호환 CLI) 어댑터 — 개인 로컬 사용 전용
     claude_code_command: str
@@ -208,6 +210,8 @@ def get_settings() -> Settings:
         openai_base_url=_get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
         openai_chat_model=_get("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
         openai_judge_model=_get("OPENAI_JUDGE_MODEL", "gpt-4o-mini"),
+        openai_image_model=_get("OPENAI_IMAGE_MODEL", "gpt-image-1"),
+        openai_image_timeout_seconds=_get_int("OPENAI_IMAGE_TIMEOUT_SECONDS", 45),
         claude_code_command=_get("CLAUDE_CODE_COMMAND", "claude"),
         claude_code_args=_get("CLAUDE_CODE_ARGS", ""),
         claude_code_timeout_seconds=_get_int("CLAUDE_CODE_TIMEOUT_SECONDS", 60),

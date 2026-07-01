@@ -78,6 +78,9 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     # ---- active_spawns: 동적 생성 NPC/매물 (공개 필드만 직렬화) ----
     _add_column_if_missing(conn, "active_spawns", "dynamic_json", "dynamic_json TEXT")
 
+    # ---- chat_messages: 미션(proof_first_buyer)이 생성한 인증사진 (data URI, 선택) ----
+    _add_column_if_missing(conn, "chat_messages", "image_data_uri", "image_data_uri TEXT")
+
     # ---- 활성 스폰 테이블 (백엔드가 NPC 등장/소멸을 관리) ----
     conn.execute(
         """

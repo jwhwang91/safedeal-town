@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     content           TEXT NOT NULL,
     tactic            TEXT,                       -- NPC가 이 메시지에서 쓴 수법(있으면). 정답지.
     flagged_by_player INTEGER NOT NULL DEFAULT 0, -- 플레이어가 🚩 눌렀나 (0/1)
+    image_data_uri    TEXT,                       -- 미션(proof_first_buyer)이 생성한 인증사진(선택, data URI)
     created_at        TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES trade_sessions(id) ON DELETE CASCADE
 );

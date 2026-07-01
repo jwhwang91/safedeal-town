@@ -375,6 +375,16 @@ def _has_keyword(texts: list[str], keywords: tuple[str, ...]) -> bool:
     return any(kw in t for t in texts for kw in keywords)
 
 
+def looks_like_proof_request(text: str) -> bool:
+    """이 플레이어 메시지가 '실물/인증 사진'을 요청하는 것처럼 보이는지.
+
+    evaluate_mission_completion 의 proof_first_buyer 판정과 같은 키워드 기준을 쓴다 —
+    채점에서 '요청했다'고 인정하는 시점과 인증사진 생성을 트리거하는 시점이 어긋나지
+    않도록 하기 위함이다.
+    """
+    return _has_keyword([text or ""], _PROOF_KEYWORDS)
+
+
 def _flags_mention(flags, markers: tuple[str, ...]) -> bool:
     return any(any(mk in (f or "") for mk in markers) for f in (flags or []))
 

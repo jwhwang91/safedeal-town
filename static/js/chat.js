@@ -70,7 +70,7 @@
   }
 
   /* ---------- 메시지 렌더 ---------- */
-  function addNpcMessage(messageId, content) {
+  function addNpcMessage(messageId, content, imageDataUri) {
     const wrap = document.createElement("div");
     wrap.className = "msg msg-npc";
     wrap.dataset.messageId = messageId;
@@ -78,6 +78,14 @@
     bubble.className = "bubble";
     bubble.textContent = content;
     wrap.appendChild(bubble);
+    // 미션(proof_first_buyer)이 만든 인증사진이 있으면 말풍선 아래 붙인다.
+    if (imageDataUri) {
+      const photo = document.createElement("img");
+      photo.className = "proof-photo";
+      photo.src = imageDataUri;
+      photo.alt = "인증사진";
+      wrap.appendChild(photo);
+    }
     const tools = document.createElement("div");
     tools.className = "msg-tools";
     const flagBtn = document.createElement("button");
@@ -460,7 +468,7 @@
     try {
       const data = await API.chat.message(session.sessionId, text);
       hideTyping();
-      addNpcMessage(data.reply.message_id, data.reply.content);
+      addNpcMessage(data.reply.message_id, data.reply.content, data.reply.image_data_uri);
       session.playerTurns = data.player_turns_used;
       updateTurn();
       if (session.playerTurns >= session.maxTurns) {
@@ -622,6 +630,14 @@
       who.textContent = (m.speaker === "npc" ? speakerWord : "나") + ": ";
       row.appendChild(who);
       row.appendChild(document.createTextNode(m.content));
+      if (m.image_data_uri) {
+        const photo = document.createElement("img");
+        photo.className = "tr-proof-photo";
+        photo.src = m.image_data_uri;
+        photo.alt = "인증사진";
+        row.appendChild(document.createElement("br"));
+        row.appendChild(photo);
+      }
       if (m.tactic) {
         const tag = document.createElement("span");
         tag.className = "tr-tactic";

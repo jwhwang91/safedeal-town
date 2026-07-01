@@ -25,6 +25,7 @@ from app import preferences as prefs_mgr
 from app import rewards as rewards_mgr
 from app import spawns as spawn_mgr
 from app.ai import adaptive_memory, adaptive_repository, adaptive_selector, persona_variant
+from app.ai import image_gen
 from app.ai import pattern_taxonomy as taxonomy
 from app.ai import persona_factory
 from app.ai.judge_agent import JudgeAgent
@@ -242,7 +243,7 @@ def _load_session(conn: sqlite3.Connection, session_id: str, user_id: int) -> sq
 
 def _load_history(conn: sqlite3.Connection, session_id: str) -> list[dict]:
     rows = conn.execute(
-        "SELECT id, turn_index, speaker, content, tactic, flagged_by_player "
+        "SELECT id, turn_index, speaker, content, tactic, flagged_by_player, image_data_uri "
         "FROM chat_messages WHERE session_id = ? ORDER BY turn_index",
         (session_id,),
     ).fetchall()
@@ -543,6 +544,31 @@ def npc_card(
     return card
 
 
+def _maybe_generate_proof_photo(
+    conn: sqlite3.Connection, user: sqlite3.Row, body: SendMessageRequest, npc: dict,
+) -> str | None:
+    """proof_first_buyer 미션 중 사진 요청이면, 조건이 맞을 때만 인증사진 한 장을 생성한다.
+
+    - 세션에 연결된 활성 미션이 정확히 proof_first_buyer 여야 한다.
+    - 이번 플레이어 메시지가 사진/인증 요청처럼 보여야 한다(missions.looks_like_proof_request).
+    - 이 세션에서 아직 사진을 만든 적이 없어야 한다(세션당 최대 한 장 — 비용/스팸 방지).
+    실제 생성은 image_gen.generate_proof_photo() 가 하며, 그 함수 자체가
+    photo_generation_available=false(mock/local_claude)일 때 이미 None 을 돌려준다.
+    """
+    active_mission = missions_mgr.get_active_mission(conn, user["id"], session_id=body.session_id)
+    if not active_mission or active_mission["mission_key"] != "proof_first_buyer":
+        return None
+    if not missions_mgr.looks_like_proof_request(body.message):
+        return None
+    already_has_photo = conn.execute(
+        "SELECT 1 FROM chat_messages WHERE session_id = ? AND image_data_uri IS NOT NULL LIMIT 1",
+        (body.session_id,),
+    ).fetchone()
+    if already_has_photo:
+        return None
+    return image_gen.generate_proof_photo(npc.get("item_name", ""), npc.get("item_category", ""))
+
+
 # ---------------------------------------------------------------
 @router.post("/message")
 def send_message(
@@ -582,10 +608,17 @@ def send_message(
     updated_history = _load_history(conn, body.session_id)
     reply = agent.reply(updated_history)
 
+    # proof_first_buyer 미션 중 실물/인증 사진을 요청하면, 사진 생성이 가능한 배포
+    # 환경(openai 모드)에서만 세션당 한 장 인증사진을 만들어 이 NPC 답장에 붙인다.
+    # 실패하거나 조건이 안 맞으면 그냥 None — 텍스트만으로 계속 진행된다(게임 흐름 유지).
+    image_data_uri = _maybe_generate_proof_photo(conn, user, body, npc)
+
     conn.execute(
-        "INSERT INTO chat_messages (session_id, turn_index, speaker, content, tactic, created_at) "
-        "VALUES (?, ?, 'npc', ?, ?, ?)",
-        (body.session_id, next_turn + 1, reply["message"], reply["tactic"], _now()),
+        "INSERT INTO chat_messages "
+        "(session_id, turn_index, speaker, content, tactic, image_data_uri, created_at) "
+        "VALUES (?, ?, 'npc', ?, ?, ?, ?)",
+        (body.session_id, next_turn + 1, reply["message"], reply["tactic"],
+         image_data_uri, _now()),
     )
     conn.commit()
 
@@ -595,7 +628,11 @@ def send_message(
     ).fetchone()
 
     return {
-        "reply": {"message_id": npc_row["id"], "content": reply["message"]},
+        "reply": {
+            "message_id": npc_row["id"],
+            "content": reply["message"],
+            "image_data_uri": image_data_uri,
+        },
         "player_turns_used": player_turns + 1,
         "max_turns": _MAX_PLAYER_TURNS,
     }
@@ -833,6 +870,7 @@ def _annotate(transcript: list[dict], catalog: dict) -> list[dict]:
             "content": m["content"],
             "flagged_by_player": bool(m["flagged_by_player"]),
             "tactic": None,
+            "image_data_uri": m.get("image_data_uri"),
         }
         if m["speaker"] == "npc" and m["tactic"] and m["tactic"] != "none":
             t = catalog.get(m["tactic"], {})
