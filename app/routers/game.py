@@ -453,12 +453,18 @@ def get_available_missions_route(
     user: sqlite3.Row = Depends(get_current_user),
     conn: sqlite3.Connection = Depends(db_dependency),
 ) -> dict:
-    """현재 모드에서 고를 수 있는 미션 카탈로그 + 활성 미션 + 지금 제안할 미션."""
+    """현재 모드에서 고를 수 있는 미션 카탈로그 + 활성 미션 + 지금 제안할 미션.
+
+    사진 생성이 필요한 미션(예: 실물 인증사진)은 그걸 만들 방법이 있는 배포 환경
+    (현재는 openai 모드)에서만 노출된다 — mock/local_claude 데모 환경에서는 애초에
+    후보에서 빠진다 (settings.photo_generation_available, app/missions.py 참고).
+    """
     role = user["game_role"] or "buyer"
+    ctx = {"photo_generation_available": get_settings().photo_generation_available}
     active = missions_mgr.get_active_mission(conn, user["id"], game_role=role)
-    suggested = None if active else missions_mgr.offer_mission(conn, user["id"], role)
+    suggested = None if active else missions_mgr.offer_mission(conn, user["id"], role, context=ctx)
     return {
-        "missions": missions_mgr.get_available_missions(role),
+        "missions": missions_mgr.get_available_missions(role, context=ctx),
         "active": active,
         "suggested": suggested,
     }
@@ -476,6 +482,11 @@ def accept_mission_route(
         raise HTTPException(status_code=400, detail="알 수 없는 미션이에요.")
     if role != (user["game_role"] or "buyer"):
         raise HTTPException(status_code=400, detail="현재 모드에서는 수락할 수 없는 미션이에요.")
+    if missions_mgr.mission_requires_photo(body.mission_key) and not get_settings().photo_generation_available:
+        raise HTTPException(
+            status_code=400,
+            detail="이 미션은 사진 인증 기능이 있는 환경에서만 진행할 수 있어요.",
+        )
     try:
         return missions_mgr.accept_mission(conn, user["id"], body.mission_key, body.session_id)
     except ValueError as e:

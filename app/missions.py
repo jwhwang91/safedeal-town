@@ -79,6 +79,9 @@ MISSION_CATALOG: list[dict] = [
         "reward_preview": {"xp_bonus": 15, "trust_bonus": 4,
                             "badge_name": "증거 중심 대응 배지", "item_bonus": True},
         "badge_item_id": "badge_evidence_first",
+        # 이 미션은 상대가 실제로 '인증 사진'을 만들어 보여줄 수 있어야 의미가 있다.
+        # 사진을 생성할 방법이 없는 배포 환경(mock/local_claude)에서는 제안하지 않는다.
+        "requires_photo_generation": True,
     },
     {
         "mission_key": "boundary_keeper_buyer",
@@ -197,10 +200,34 @@ def _public_active_mission(row: sqlite3.Row) -> dict:
 # ============================================================
 #  조회 / 제안 / 수락 / 포기
 # ============================================================
-def get_available_missions(game_role: str, context: dict | None = None) -> list[dict]:
-    """이 모드(buyer/seller)에서 고를 수 있는 미션 카탈로그(정적 정의) 전체."""
+def mission_requires_photo(mission_key: str) -> bool:
+    """이 미션이 (아직 어디서도 실제로 만들지 않는) 인증 사진 생성을 전제로 하는지."""
+    entry = _CATALOG_BY_KEY.get(mission_key)
+    return bool(entry and entry.get("requires_photo_generation"))
+
+
+def _catalog_pool(game_role: str, context: dict | None = None) -> list[dict]:
+    """이 모드에서 지금 고를 수 있는 미션(내부용 카탈로그 dict) 목록.
+
+    context.photo_generation_available 가 falsy 면(mock/local_claude 등 사진을 만들 방법이
+    없는 배포 환경) requires_photo_generation 미션은 애초에 후보에서 뺀다 —
+    플레이어가 완료할 수 없는 미션을 제안하지 않기 위함.
+    """
     role = game_role if game_role in ("buyer", "seller") else "buyer"
-    return [_public_catalog_entry(m) for m in MISSION_CATALOG if m["game_role"] == role]
+    photo_ok = bool((context or {}).get("photo_generation_available"))
+    pool = [m for m in MISSION_CATALOG if m["game_role"] == role]
+    if not photo_ok:
+        pool = [m for m in pool if not m.get("requires_photo_generation")]
+    return pool
+
+
+def get_available_missions(game_role: str, context: dict | None = None) -> list[dict]:
+    """이 모드(buyer/seller)에서 고를 수 있는 미션 카탈로그(정적 정의).
+
+    context 로 {"photo_generation_available": bool} 을 넘기면, 사진 생성이 필요한
+    미션은 그 값이 true 일 때만 목록에 포함된다.
+    """
+    return [_public_catalog_entry(m) for m in _catalog_pool(game_role, context)]
 
 
 def _last_mission_key(conn: sqlite3.Connection, user_id: int, game_role: str) -> str | None:
@@ -218,12 +245,13 @@ def offer_mission(conn: sqlite3.Connection, user_id: int, game_role: str,
 
     이미 활성 미션이 있으면 새로 제안하지 않는다(None). 직전 미션과 같은 키는
     가능하면 피해서(반복 방지) 다양성을 준다. 아직 수락된 건 아니므로 DB 에 아무것도 쓰지 않는다
-    — 실제 활성화는 accept_mission() 이 한다.
+    — 실제 활성화는 accept_mission() 이 한다. 후보 풀은 _catalog_pool() 과 동일한 규칙으로
+    사진 생성 필요 미션을 걸러낸다(get_available_missions() 와 일관되게).
     """
     role = game_role if game_role in ("buyer", "seller") else "buyer"
     if get_active_mission(conn, user_id, game_role=role):
         return None
-    pool = [m for m in MISSION_CATALOG if m["game_role"] == role]
+    pool = _catalog_pool(role, context)
     if not pool:
         return None
     last_key = _last_mission_key(conn, user_id, role)

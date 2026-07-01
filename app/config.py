@@ -160,6 +160,22 @@ class Settings:
         return p if p in ("template", "local_claude", "openai") else "template"
 
     @property
+    def photo_generation_available(self) -> bool:
+        """실물/인증 사진 생성이 가능한 배포 환경인지.
+
+        실제 이미지 생성 API 에 접근 가능한 '서버/API 모드'(현재는 openai)에서만 true.
+        데모용 mock 모드나 개인 로컬 CLI 모드(local_claude)에서는 항상 false —
+        이런 환경에는 사진을 만들 방법이 없으므로, 사진 인증이 필요한 미션 자체를
+        제안하지 않는다 (app/missions.py 의 미션 카탈로그 필터링에서 사용).
+
+        지금은 이 값을 미션 노출 여부를 가르는 용도로만 쓴다 — 실제 이미지 생성 호출은
+        아직 어디에도 연결돼 있지 않다(향후 연동 지점). 나중에 다른 이미지 생성
+        제공자(예: Gemini)를 추가하면 `self.ai_provider in {"openai", "gemini"}` 처럼
+        이 조건만 늘리면 된다.
+        """
+        return self.ai_provider == "openai"
+
+    @property
     def map_provider_effective(self) -> str:
         """
         키가 없는 google/naver 는 무조건 procedural 로 떨어뜨린다.
