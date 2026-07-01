@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
 <!-- ?v= 는 캐시 무효화용. 정적 파일을 고칠 때마다 숫자를 올리면 브라우저가 새로 받는다. -->
-<link rel="stylesheet" href="/static/css/style.css?v=11" />
+<link rel="stylesheet" href="/static/css/style.css?v=12" />
 </head>
 <body>
 
@@ -210,41 +210,70 @@
       <button class="chat-close" id="chat-close" title="대화 접기">✕</button>
     </header>
 
-    <div class="listing-card" id="listing-card">
-      <div class="listing-row">
+    <!-- 접히는 매물 요약 카드 (기본은 한 줄, 탭하면 상세) -->
+    <div class="listing-card collapsed" id="listing-card" role="button" tabindex="0"
+         aria-expanded="false" title="매물 정보 펼치기">
+      <div class="listing-head">
         <span class="listing-item" id="listing-item"></span>
-        <span class="listing-price" id="listing-price"></span>
+        <span class="listing-headmeta" id="listing-headmeta"></span>
+        <span class="listing-caret" aria-hidden="true">▾</span>
       </div>
-      <div class="listing-meta">
-        <span id="listing-market"></span>
-        <span id="listing-location"></span>
+      <div class="listing-detail" id="listing-detail">
+        <div class="listing-row">
+          <span class="listing-price" id="listing-price"></span>
+          <span class="listing-market" id="listing-market"></span>
+        </div>
+        <div class="listing-loc" id="listing-location"></div>
       </div>
     </div>
 
     <div class="chat-body" id="chat-body"></div>
 
     <div class="chat-footer">
+      <!-- 기본 빠른 답변 (2~3개, 첫 발화 전) -->
+      <div class="chat-quick hidden" id="chat-quick"></div>
+
       <div class="chat-input-row">
+        <button id="chat-plus" class="btn-plus" type="button" title="답변 도구" aria-label="답변 도구">＋</button>
         <input type="text" id="chat-input" maxlength="400"
                placeholder="판매자에게 메시지 보내기..." autocomplete="off" />
         <button id="chat-send" class="btn-send">보내기</button>
       </div>
-      <div class="chat-turn-info">
-        <span id="chat-turn-text">대화 0 / 14</span>
-        <span class="chat-tip">💡 의심스러운 메시지는 🚩 를 눌러 표시하세요</span>
+
+      <div class="chat-actionbar">
+        <span class="chat-turn-mini" id="chat-turn-text">대화 0 / 14</span>
+        <button id="btn-decide" class="btn-decide" type="button">거래 판단하기</button>
       </div>
+    </div>
 
-      <!-- 구매자 모드 빠른 문의 칩 (checklist 가 건드리는 #chat-suggest 와 분리) -->
-      <div class="chat-quick hidden" id="chat-quick"></div>
-
-      <div class="chat-tools" id="chat-tools">
-        <div class="chat-suggest" id="chat-suggest"></div>
-        <button class="checklist-toggle" id="checklist-toggle" type="button">📋 거래 체크리스트</button>
-        <div class="checklist-panel hidden" id="checklist-panel"></div>
+    <!-- ===== 답변 도구 시트 (＋ 로 열림) ===== -->
+    <div class="chat-sheet hidden" id="tools-sheet" aria-hidden="true">
+      <div class="chat-sheet-head">
+        <span>💬 답변 도구</span>
+        <button class="sheet-close" type="button" data-close="tools-sheet" title="닫기">✕</button>
       </div>
+      <div class="chat-sheet-body">
+        <div class="sheet-section" id="tools-quick-sec">
+          <h5>빠른 답변</h5>
+          <div class="chat-quick-full" id="tools-quick"></div>
+        </div>
+        <div class="sheet-section">
+          <h5>거래 도구 · 답변 템플릿</h5>
+          <div class="chat-suggest" id="chat-suggest"></div>
+          <button class="checklist-toggle" id="checklist-toggle" type="button">📋 거래 체크리스트</button>
+          <div class="checklist-panel hidden" id="checklist-panel"></div>
+        </div>
+      </div>
+    </div>
 
-      <div class="decision-row">
-        <p class="decision-label">거래를 마칠 준비가 됐다면 선택하세요</p>
+    <!-- ===== 거래 판단 시트 (거래 판단하기 로 열림) ===== -->
+    <div class="chat-sheet hidden" id="decision-sheet" aria-hidden="true">
+      <div class="chat-sheet-head">
+        <span>🧭 최종 대응</span>
+        <button class="sheet-close" type="button" data-close="decision-sheet" title="닫기">✕</button>
+      </div>
+      <div class="chat-sheet-body">
+        <p class="decision-label">대화를 충분히 보고 최종 대응을 선택하세요.</p>
         <!-- 구매자 모드 결정 -->
         <div class="decision-btns" id="buyer-decisions">
           <button class="btn-decision btn-buy" data-decision="buy">✅ 안전하게 구매</button>
@@ -416,18 +445,18 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/static/js/api.js?v=11"></script>
-<script src="/static/js/auth.js?v=11"></script>
-<script src="/static/js/avatar.js?v=11"></script>
-<script src="/static/js/sprites.js?v=11"></script>
-<script src="/static/js/world_map.js?v=11"></script>
-<script src="/static/js/spawn_manager.js?v=11"></script>
-<script src="/static/js/game.js?v=11"></script>
-<script src="/static/js/listing_setup.js?v=11"></script>
-<script src="/static/js/setup.js?v=11"></script>
-<script src="/static/js/checklist.js?v=11"></script>
-<script src="/static/js/chat.js?v=11"></script>
-<script src="/static/js/inventory.js?v=11"></script>
-<script src="/static/js/main.js?v=11"></script>
+<script src="/static/js/api.js?v=12"></script>
+<script src="/static/js/auth.js?v=12"></script>
+<script src="/static/js/avatar.js?v=12"></script>
+<script src="/static/js/sprites.js?v=12"></script>
+<script src="/static/js/world_map.js?v=12"></script>
+<script src="/static/js/spawn_manager.js?v=12"></script>
+<script src="/static/js/game.js?v=12"></script>
+<script src="/static/js/listing_setup.js?v=12"></script>
+<script src="/static/js/setup.js?v=12"></script>
+<script src="/static/js/checklist.js?v=12"></script>
+<script src="/static/js/chat.js?v=12"></script>
+<script src="/static/js/inventory.js?v=12"></script>
+<script src="/static/js/main.js?v=12"></script>
 </body>
 </html>

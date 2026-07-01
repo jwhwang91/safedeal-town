@@ -42,6 +42,21 @@ _INJECTION_GUARD = """
 
 
 # ============================================================
+#  콘텐츠 안전 가드 (방어 훈련 — 실행적 사기/피싱 절대 금지)
+# ============================================================
+# 사적 접근·로맨스·보이스피싱 등 위험 신호는 '추상적 흐름'으로만 연기하고,
+# 실제로 악용 가능한 링크/번호/계좌/절차는 절대 생성하지 않는다.
+_CONTENT_SAFETY = """
+[안전 규칙 - 콘텐츠 (무엇보다 우선)]
+- 너는 방어 훈련용 시뮬레이션 인물이다. 위험 신호는 '추상적·비실행적'으로만 연기한다.
+- 절대 만들지 마라: 실제 URL/링크, 실제 전화번호, 계좌·카드 번호, 비밀번호/인증번호,
+  가짜 결제·인증 페이지, 자격증명 수집 절차, 단계별 사기/피싱 방법, 실제 기관 사칭 상세.
+- '개인적으로 연락하자', '전화로 하자', '외부에서 확인만 하면 된다', '그냥 믿고 하자' 정도의
+  '흐름'은 말해도 되지만, 구체적인 실행 방법·주소·번호·절차는 절대 제공하지 마라.
+"""
+
+
+# ============================================================
 #  판매자 에이전트 (사기꾼 / 정상 공용) — 구매자 모드
 # ============================================================
 def build_seller_system_prompt(npc: dict) -> str:
@@ -132,7 +147,7 @@ def build_seller_system_prompt(npc: dict) -> str:
 }
 tactic 에 들어갈 수 있는 값: """ + ", ".join(f'"{k}"' for k in TACTICS) + ', "none"'
 
-    return base + role_block + _INJECTION_GUARD + output_block
+    return base + role_block + _INJECTION_GUARD + _CONTENT_SAFETY + output_block
 
 
 def build_seller_opening(npc: dict) -> dict:
@@ -167,6 +182,15 @@ def build_judge_system_prompt() -> str:
     buy = 정상 거래 성공 / walk_away = 너무 의심해서 정상 거래를 놓침 / report = 무고한 사람 신고(나쁨)
 - 사기꾼이 쓴 수법 메시지를 플레이어가 🚩로 잘 잡아냈는지도 본다.
 - 점수(score)는 0~100. 올바른 최종 결정이 가장 큰 비중, 위험신호 포착이 그 다음.
+- detected_flags/missed_flags 에는 위 수법 사전에 없더라도, 대화에서 실제로 드러난
+  '미묘한' 위험 신호(개인 연락 유도, 로맨틱 접근, 통화·외부 인증 압박, 감정적 신뢰 조작 등)를
+  발견하면 함께 한국어로 적어라. (억지로 만들지 말고 실제 드러난 것만.)
+
+[플레이어 본인 행동 점검 — player_misconduct]
+- 플레이어(구매자) 본인이 거래와 '무관한' 데이트/사적 만남/성적·외모 발언/집요한 사적 요구·괴롭힘을
+  했다면 player_misconduct=true. 이건 상대가 아니라 '플레이어 잘못'이다.
+- 단, '직거래로 만나요/역 앞에서 뵐게요/공공장소에서 거래' 같은 정상적인 거래 목적 만남은
+  절대 misconduct 가 아니다. 확실할 때만 true.
 
 [말투]
 코칭 멘트는 사람 냄새나는 자연스러운 한국어로. 교과서처럼 딱딱하거나 AI 같은 문체 금지.
@@ -180,9 +204,12 @@ def build_judge_system_prompt() -> str:
   "score": 0~100 사이 정수,
   "detected_flags": ["플레이어가 제대로 잡아낸 위험신호를 한국어로", ...],
   "missed_flags": ["플레이어가 놓친 위험신호를 한국어로", ...],
+  "player_misconduct": true 또는 false,
   "coaching": "플레이어에게 해주는 코칭 한마디"
 }}
-verdict 의미: good_catch=사기꾼을 신고/회피해서 막음, safe=정상 거래를 잘 성사, scammed=사기를 당함, missed_deal=정상인데 과하게 의심해서 놓침"""
+verdict 의미: good_catch=사기꾼을 신고/회피해서 막음, safe=정상 거래를 잘 성사, scammed=사기를 당함, missed_deal=정상인데 과하게 의심해서 놓침
+(참고: verdict/score 는 규칙으로도 검증된다. 네 detected_flags/missed_flags/player_misconduct/coaching 은
+ 표시와 코칭을 더 정확하게 만드는 데 쓰인다 — 특히 미묘한 신호와 플레이어 본인의 부적절 행위 포착이 중요하다.)"""
 
 
 def build_judge_user_payload(
@@ -341,7 +368,7 @@ def build_buyer_system_prompt(npc: dict, seller_category: str | None,
 }
 behavior 에 들어갈 수 있는 값: """ + ", ".join(f'"{k}"' for k in BUYER_BEHAVIORS) + ', "none"'
 
-    return base + role_block + _INJECTION_GUARD + output_block
+    return base + role_block + _INJECTION_GUARD + _CONTENT_SAFETY + output_block
 
 
 def build_buyer_opening(npc: dict) -> dict:
@@ -368,7 +395,10 @@ def build_seller_mode_judge_system_prompt() -> str:
 - 단정적 표현("무조건 ~해야 한다", "100% 환불 불가") 대신 균형 잡힌 안내를 해라.
 
 [너에게 주어지는 정보]
-- 구매자의 진짜 유형(정답지): honest_buyer / refund_villain / lowballer / ghosting_buyer / risky_buyer
+- 구매자의 진짜 유형(정답지): honest_buyer / refund_villain / lowballer / ghosting_buyer /
+  risky_buyer / legit_claim_buyer / private_contact_buyer(사적 연락 요구) /
+  romantic_pressure_buyer(로맨틱 경계 침해) / voice_phishing_buyer(외부 인증 유도) /
+  social_engineering_buyer(감정·긴박 압박) / harasser_buyer(거절 후 공격)
 - 그 구매자가 쓴 행동 목록
 - 전체 대화 내용
 - 플레이어(판매자)의 최종 결정:
@@ -385,6 +415,14 @@ def build_seller_mode_judge_system_prompt() -> str:
 - 침착함(욕설/협박 없이 감정 통제), 증거·고지 활용, 플랫폼 안전 절차 사용,
   부당한 요구엔 휘둘리지 않기, 정당한 하자라면 합리적으로 해결, 위험거래(외부결제 등) 거절.
 - 점수(score) 0~100. 침착하고 근거 있는 대응일수록 높게.
+- detected_flags/missed_flags 에는 행동 사전에 없더라도, 대화에서 실제로 드러난 '미묘한'
+  위험 신호(사적 연락 요구, 로맨틱 경계 침해, 외부 인증 유도, 감정·긴박 압박, 거절 후 괴롭힘 등)를
+  발견하면 함께 한국어로 적어라. (실제 드러난 것만.)
+
+[플레이어(판매자) 본인 행동 점검 — player_misconduct]
+- 판매자 본인이 거래와 '무관한' 데이트/사적 만남 요구·'데이트해주면 할인' 같은 제안·성적/외모 발언·
+  집요한 사적 요구·괴롭힘을 했다면 player_misconduct=true. 상대가 아니라 '판매자 잘못'이다.
+- 단, '공공장소 직거래로 만나요' 같은 정상적인 거래 목적 만남은 misconduct 가 아니다. 확실할 때만 true.
 
 [말투]
 사람 냄새나는 자연스러운 한국어 2~4문장. 잘한 점 짧게 인정 + 다음에 쓸 구체적 팁 하나.
@@ -392,13 +430,15 @@ def build_seller_mode_judge_system_prompt() -> str:
 [출력 형식 - 반드시 JSON 하나만]
 코드블록 없이 아래 JSON 객체 하나만 출력해라.
 {{
-  "verdict": "fair_sale | handled_refund_villain | over_refunded | unsafe_response | missed_legitimate_claim 중 하나",
+  "verdict": "fair_sale | handled_refund_villain | handled_risky | over_refunded | unsafe_response | missed_legitimate_claim 중 하나",
   "correct": true 또는 false,
   "score": 0~100 사이 정수,
   "detected_flags": ["플레이어가 잘 대응한 위험 행동을 한국어로", ...],
   "missed_flags": ["플레이어가 놓치거나 잘못 대응한 점을 한국어로", ...],
+  "player_misconduct": true 또는 false,
   "coaching": "판매자에게 해주는 코칭 한마디"
-}}"""
+}}
+(참고: verdict/score 는 규칙으로도 검증된다. 네 플래그/player_misconduct/coaching 은 표시와 코칭 강화용이다.)"""
 
 
 def build_seller_mode_judge_user_payload(

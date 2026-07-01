@@ -36,6 +36,20 @@
   const buyerDecisions = document.getElementById("buyer-decisions");
   const sellerDecisions = document.getElementById("seller-decisions");
   const allDecisionBtns = document.querySelectorAll(".btn-decision");
+  // 리디자인: 접히는 매물 카드 / ＋도구 / 거래판단 / 하단 시트
+  const listingCard = document.getElementById("listing-card");
+  const elHeadMeta = document.getElementById("listing-headmeta");
+  const elPlus = document.getElementById("chat-plus");
+  const elDecide = document.getElementById("btn-decide");
+  const elToolsQuick = document.getElementById("tools-quick");
+  const toolsSheet = document.getElementById("tools-sheet");
+  const decisionSheet = document.getElementById("decision-sheet");
+
+  // 모드별 기본 빠른 답변 (2~3개만 노출, 나머지는 답변 도구 시트에서)
+  const DEFAULT_QUICK = {
+    buyer: ["아직 판매 중인가요?", "실물 사진 더 볼 수 있을까요?", "직거래 가능할까요?"],
+    seller: ["네, 아직 판매 중입니다.", "상태는 판매글에 적은 내용과 같습니다.", "거래는 플랫폼 안에서 진행할게요."],
+  };
 
   /* ---------- 상태 ---------- */
   let session = null; // { sessionId, npc, mode, maxTurns, playerTurns, busy, resolved }
@@ -69,7 +83,9 @@
     const flagBtn = document.createElement("button");
     flagBtn.className = "flag-btn";
     flagBtn.type = "button";
-    flagBtn.textContent = "🚩 의심";
+    flagBtn.textContent = "🚩";
+    flagBtn.title = "의심 표시";
+    flagBtn.setAttribute("aria-label", "이 메시지 의심 표시");
     flagBtn.addEventListener("click", () => toggleFlag(messageId, bubble, flagBtn));
     tools.appendChild(flagBtn);
     wrap.appendChild(tools);
@@ -113,26 +129,46 @@
     const e = document.getElementById("chat-empty");
     if (e) e.remove();
   }
-  function renderQuickChips(messages) {
+  function fillInput(text) {
+    // '채우기' — 키보드 흐름 유지: 입력란에 넣고 포커스 (사용자가 검토 후 전송)
+    if (!session || session.resolved || session.busy) return;
+    elInput.value = text;
+    elInput.focus();
+  }
+  function makeQuickChip(text, onClick) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "suggest-chip";
+    chip.textContent = text;
+    chip.addEventListener("click", onClick);
+    return chip;
+  }
+  // 기본 뷰: 2~3개만. 나머지 전체 목록은 '답변 도구' 시트에 있다.
+  function renderQuickChips(messages, hasMore) {
     elQuick.innerHTML = "";
     if (!messages || !messages.length) {
       elQuick.classList.add("hidden");
       return;
     }
-    messages.forEach((text) => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "suggest-chip";
-      chip.textContent = text;
-      chip.addEventListener("click", () => {
-        // '채우기' — 키보드 흐름 유지: 입력란에 넣고 포커스 (사용자가 검토 후 전송)
-        if (!session || session.resolved || session.busy) return;
-        elInput.value = text;
-        elInput.focus();
-      });
-      elQuick.appendChild(chip);
-    });
+    messages.slice(0, 3).forEach((text) =>
+      elQuick.appendChild(makeQuickChip(text, () => fillInput(text)))
+    );
+    if (hasMore) {
+      const more = makeQuickChip("답변 더보기 ⋯", () => openSheet("tools-sheet"));
+      more.classList.add("quick-more");
+      elQuick.appendChild(more);
+    }
     elQuick.classList.remove("hidden");
+  }
+  // 답변 도구 시트: 전체 빠른 답변. 누르면 입력창에 채우고 시트를 닫는다.
+  function renderToolsQuick(messages) {
+    if (!elToolsQuick) return;
+    elToolsQuick.innerHTML = "";
+    (messages || []).forEach((text) =>
+      elToolsQuick.appendChild(makeQuickChip(text, () => { fillInput(text); closeSheets(); }))
+    );
+    const sec = document.getElementById("tools-quick-sec");
+    if (sec) sec.style.display = (messages && messages.length) ? "" : "none";
   }
   function hideQuickChips() {
     elQuick.innerHTML = "";
@@ -171,6 +207,32 @@
 
   function updateTurn() {
     elTurn.textContent = "대화 " + session.playerTurns + " / " + session.maxTurns;
+  }
+
+  /* ---------- 하단 시트 (답변 도구 / 거래 판단) ---------- */
+  function closeSheets() {
+    [toolsSheet, decisionSheet].forEach((s) => {
+      if (!s) return;
+      s.classList.add("hidden");
+      s.setAttribute("aria-hidden", "true"); // 접근성: 닫히면 보조기기에서도 숨김
+    });
+    if (elPlus) elPlus.classList.remove("active");
+  }
+  function openSheet(id) {
+    const target = id === "tools-sheet" ? toolsSheet : decisionSheet;
+    if (!target) return;
+    const wasOpen = !target.classList.contains("hidden");
+    closeSheets();
+    if (!wasOpen) {
+      target.classList.remove("hidden");
+      target.setAttribute("aria-hidden", "false"); // 열리면 보조기기에서도 노출
+      if (id === "tools-sheet" && elPlus) elPlus.classList.add("active");
+    }
+  }
+  function setListingCollapsed(collapsed) {
+    if (!listingCard) return;
+    listingCard.classList.toggle("collapsed", collapsed);
+    listingCard.setAttribute("aria-expanded", collapsed ? "false" : "true");
   }
 
   /* ---------- 프로필/매물 카드 (대화 전) ---------- */
@@ -319,9 +381,12 @@
         (data.npc.appearance ? data.npc.appearance + " · " : "") +
         roleWord + " · 난이도 " + diffLabel(data.npc.difficulty);
 
-      // 매물 카드 (모드별 표시)
+      const seller = session.mode === "seller";
+
+      // 접히는 매물 카드 (기본은 한 줄 요약)
       elItem.textContent = data.npc.item_name;
-      if (session.mode === "seller") {
+      elHeadMeta.textContent = "· " + (seller ? "내 매물" : (data.npc.location || "동네 직거래"));
+      if (seller) {
         elPrice.textContent = "";
         elMarket.textContent = "내가 올린 중고 매물";
       } else {
@@ -329,24 +394,28 @@
         elMarket.textContent = "시세 약 " + won(data.npc.market_price);
       }
       elLocation.textContent = "📍 " + data.npc.location;
+      setListingCollapsed(true);
 
-      // 결정 버튼 그룹 전환
-      const seller = session.mode === "seller";
+      // 결정 버튼 그룹 전환 (거래 판단 시트 안)
       buyerDecisions.style.display = seller ? "none" : "";
       sellerDecisions.style.display = seller ? "" : "none";
-      elDecisionLabel.textContent = seller
-        ? "어떻게 대응할지 정했다면 선택하세요"
-        : "거래를 마칠 준비가 됐다면 선택하세요";
+      if (elDecisionLabel) elDecisionLabel.textContent = "대화를 충분히 보고 최종 대응을 선택하세요.";
+      closeSheets();
 
       elBody.innerHTML = "";
       if (session.requiresPlayerFirst || !data.opening) {
-        // 빈 채팅 + 빠른 문의 칩 — 판매자 NPC 오프닝은 렌더하지 않는다.
+        // 빈 채팅 — 판매자 NPC 오프닝은 렌더하지 않는다 (플레이어가 먼저 문의).
         renderEmptyState();
-        renderQuickChips(data.suggested_messages || []);
       } else {
         addNpcMessage(data.opening.message_id, data.opening.content);
-        hideQuickChips();
       }
+
+      // 기본 빠른 답변 (2~3개만 노출, 전체는 답변 도구 시트에)
+      const serverQuick = (data.suggested_messages && data.suggested_messages.length)
+        ? data.suggested_messages : null;
+      const quickAll = seller ? DEFAULT_QUICK.seller : (serverQuick || DEFAULT_QUICK.buyer);
+      renderQuickChips(quickAll, quickAll.length > 3);
+      renderToolsQuick(quickAll);
       updateTurn();
 
       elInput.value = "";
@@ -410,6 +479,7 @@
   async function resolveTrade(decision) {
     if (!session || session.busy || session.resolved) return;
     session.busy = true;
+    closeSheets();
     setInputEnabled(false);
     showTyping();
     try {
@@ -445,6 +515,8 @@
     unsafe_response: { cls: "bad", emoji: "⚠️", title: "위험한 대응이었어요" },
     lost_sale: { cls: "ok", emoji: "😢", title: "정상 거래를 놓쳤어요" },
     missed_legitimate_claim: { cls: "bad", emoji: "🙁", title: "정당한 요구를 놓쳤어요" },
+    // 플레이어 본인 부적절 행위 (양쪽 모드)
+    player_misconduct: { cls: "bad", emoji: "🚫", title: "부적절한 대응이었어요" },
   };
   const DECISION_LABEL = {
     buy: "구매", walk_away: "거래 중단", report: "신고",
@@ -720,6 +792,7 @@
 
   /* ---------- 닫기 ---------- */
   function closeChat() {
+    closeSheets();
     chatOverlay.classList.add("hidden");
     session = null;
     SafeDealGame.setPaused(false);
@@ -846,6 +919,30 @@
     btn.addEventListener("click", () => resolveTrade(btn.dataset.decision))
   );
   elClose.addEventListener("click", closeChat);
+
+  /* 리디자인: 접히는 매물 카드 / ＋도구 / 거래판단 / 시트 닫기 */
+  if (listingCard) {
+    listingCard.addEventListener("click", () =>
+      setListingCollapsed(!listingCard.classList.contains("collapsed"))
+    );
+    listingCard.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setListingCollapsed(!listingCard.classList.contains("collapsed"));
+      }
+    });
+  }
+  if (elPlus) elPlus.addEventListener("click", () => openSheet("tools-sheet"));
+  if (elDecide) elDecide.addEventListener("click", () => openSheet("decision-sheet"));
+  document.querySelectorAll(".sheet-close").forEach((b) =>
+    b.addEventListener("click", closeSheets)
+  );
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const anyOpen = (toolsSheet && !toolsSheet.classList.contains("hidden")) ||
+                    (decisionSheet && !decisionSheet.classList.contains("hidden"));
+    if (anyOpen) { e.preventDefault(); closeSheets(); }
+  });
   document.getElementById("result-close").addEventListener("click", closeResult);
   document.getElementById("record-close").addEventListener("click", closeRecord);
 
