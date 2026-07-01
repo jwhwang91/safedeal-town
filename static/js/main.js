@@ -105,6 +105,7 @@
       await SafeDealGame.loadWorld(); // 내부에서 updateHud 호출
       showScreen("game");
       SafeDealGame.start();
+      if (global.SafeDealMissions) SafeDealMissions.checkAndOffer();
     } catch (err) {
       // 토큰이 만료됐거나 서버 문제 → 인증 화면으로
       API.clearToken();
@@ -135,6 +136,7 @@
     try {
       await API.game.setRole(next);
       await SafeDealGame.loadWorld(); // 새 역할의 NPC로 다시 채우고 HUD/배너 갱신
+      if (global.SafeDealMissions) SafeDealMissions.checkAndOffer();
       toast(
         next === "seller"
           ? "🏪 판매자 모드로 전환! 찾아오는 구매자에 대응해 물건을 파세요."

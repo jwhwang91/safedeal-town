@@ -121,6 +121,54 @@ NPC 매물은 '시장 맥락 제공자'로 생성됩니다. `.env` 의 `MARKET_L
 
 ---
 
+## 🎯 미션 / 돌발 퀘스트 시스템
+
+> **왜 필요한가**: "직거래만 할게요" 는 실제로도 자주 안전한 선택이지만, 항상 그렇게만 하면
+> 게임이 너무 쉬워집니다. 미션은 **직거래가 불가능한 상황을 자기 선언적으로 설정**해서
+> 택배거래·플랫폼 안전결제·실물 인증·경계 설정·침착한 분쟁 대응 같은 **현실적인 대안**도
+> 연습하게 합니다. 직거래 자체가 나쁜 게 아니라, **이번 미션에서만 쓸 수 없을 뿐**입니다.
+
+- 마을에 입장하거나(👉 셋업 완료 직후) 역할을 전환할 때, 활성 미션이 없으면 **미션 제안 카드**가
+  뜹니다 (수락/건너뛰기 자유 — 게임을 막지 않습니다).
+- 수락하면 HUD 좌측에 **작은 접이식 칩**(`🎯 미션 제목`)으로 표시되고, 펼치면 상황/제약/보상 미리보기 +
+  **미션 포기** 버튼을 볼 수 있습니다.
+- 미션을 수락한 뒤 대화를 시작하면 그 세션에 자동으로 연결되고, **거래를 종료(resolve)할 때** 채점됩니다.
+- 채점은 **전부 규칙 기반**입니다(`app/missions.py::evaluate_mission_completion`) — LLM 은 코칭 문구를
+  다듬지 않고, 성공/실패 판정에도 전혀 관여하지 않습니다. 체크리스트 자기보고(`checklist`) + 대화 내용
+  키워드 + 기존 심판(JudgeAgent)의 `verdict/correct/missed_flags` 를 함께 봅니다.
+- **핵심 거래 판정(사기냐 아니냐)은 항상 그대로**입니다 — 미션은 그 위에 "훈련 목표를 달성했는가"를
+  별도로 얹을 뿐, 기존 안전/사기 채점을 대체하지 않습니다.
+  예) `직거래만 할게요` 라고만 말하고 구매하면, 상대가 정상 판매자라 기본 거래는 `safe` 로 채점돼도
+  **`delivery_only_buyer` 미션은 실패**합니다 (직거래가 불가능한 상황을 가정한 훈련이었으므로).
+- 성공하면 **XP/신뢰도 보너스** + **미션 전용 배지**(거래 가방에 아이템으로 지급) + **보너스 아이템 확률**을 받습니다.
+  실패해도 기본 거래 보상/채점에는 영향이 없습니다(미션 보너스만 0).
+
+### 미션 목록
+
+| 모드 | 미션 키 | 제목 | 훈련 목표 |
+|------|---------|------|-----------|
+| 구매자 | `delivery_only_buyer` | 택배거래로 안전하게 구매하기 | 직거래 없이 인증·안전 절차로 구매 |
+| 구매자 | `safe_payment_buyer` | 안전결제로 거래 완료하기 | 플랫폼 안전결제만 사용, 외부 결제 거절 |
+| 구매자 | `proof_first_buyer` | 실물 인증 받고 구매하기 | 실물/날짜 인증·구성품 확인 후 판단 |
+| 구매자 | `boundary_keeper_buyer` | 사적 연락 유도 거절하기 | 플랫폼 밖 연락 요구 거절 |
+| 판매자 | `delivery_safe_seller` | 택배거래로 안전하게 판매하기 | 상태 고지 + 증거 + 플랫폼 대화 유지 |
+| 판매자 | `refund_boundary_seller` | 부당 환불 요구 대응하기 | 감정 대신 기록/근거로 침착 대응 |
+| 판매자 | `private_contact_refusal_seller` | 사적 연락 요구 거절하기 | 플랫폼 밖 연락 요구 거절 |
+| 판매자 | `lowball_boundary_seller` | 과도한 네고에 기준선 지키기 | 침착하게 기준선 유지, 필요시 거래 정리 |
+
+### DB / API
+- 테이블: `user_active_missions` (UUID id, `mission_json`/`reward_json` 은 TEXT-JSON, ISO-8601 UTC 타임스탬프,
+  `CREATE TABLE IF NOT EXISTS` 로 멱등 생성 — 기존 데이터에 영향 없음). `trade_sessions` 에도
+  `active_mission_id` 컬럼이 (멱등) 추가됩니다.
+- API: `GET/POST /api/game/missions/available·accept·skip·active·clear-current` (모두 `app/routers/game.py`,
+  로그인 사용자 본인 것만 조회/조작 가능). `/api/chat/start` 응답에 `mission`(연결된 활성 미션),
+  `/api/chat/resolve` 응답에 `mission`(채점 결과: 성공여부/사유/교훈/보너스/획득 배지)이 추가됩니다.
+- 적응형 엔진 연동은 아직 하지 않습니다 — 다만 `mission_key`/`status`/타임스탬프가 `user_active_missions` 에
+  누적 저장되므로, 나중에 "직거래 과의존 시 택배 미션을 더 자주 제안" 같은 적응형 로직을 얹을 수 있는
+  기반 데이터는 이미 쌓입니다.
+
+---
+
 ## 🧠 적응형 시나리오 엔진 (Adaptive Scenario Evolution Engine)
 
 > ⚠️ **이것은 방어 훈련 시스템입니다. 사기 생성 시스템이 아닙니다.**
@@ -266,6 +314,7 @@ safedeal-town/
 │  ├─ security.py / models.py / deps.py
 │  ├─ preferences.py      구매 위시리스트 + 판매글 저장소  ★신규
 │  ├─ rewards.py          인벤토리 아이템 정의/지급/장착 + 보상 굴리기  ★신규
+│  ├─ missions.py         미션/돌발 퀘스트 카탈로그 + 수락·포기·규칙기반 채점  ★신규
 │  ├─ aftermath.py        거래 후 상황 + 현실 교훈  ★신규
 │  ├─ market/             시장 데이터 어댑터 + 상품 카탈로그  ★신규
 │  │  ├─ catalog.py           상품 카탈로그 + 매물 생성기
@@ -275,8 +324,8 @@ safedeal-town/
 │  │  └─ normalizer.py        개인정보 제거 + 정규화
 │  ├─ routers/
 │  │  ├─ auth.py          회원가입/로그인/내 정보
-│  │  ├─ game.py          셋업·선호·판매글·아바타·위치·월드·스폰·전적·인벤토리·습관리포트
-│  │  └─ chat.py          거래 대화 + 프로필카드 + 보상/체크리스트/거래후상황
+│  │  ├─ game.py          셋업·선호·판매글·아바타·위치·월드·스폰·전적·인벤토리·습관리포트·미션
+│  │  └─ chat.py          거래 대화 + 프로필카드 + 보상/체크리스트/거래후상황/미션 채점
 │  └─ ai/
 │     ├─ personas.py      판매자 NPC + 구매자 NPC + 수법/행동 사전 (동적 생성의 앵커)
 │     ├─ persona_factory.py  동적 NPC/매물/프로필 카드 생성  ★신규
@@ -298,7 +347,7 @@ safedeal-town/
 └─ static/
    ├─ index.html / css/style.css
    └─ js/  api · auth · avatar · sprites · world_map · spawn_manager · game ·
-           listing_setup · setup · checklist · chat · inventory · main
+           listing_setup · setup · checklist · chat · inventory · missions · main
 ```
 
 ---
@@ -321,7 +370,12 @@ safedeal-town/
 | GET | `/api/game/training-profile` | 🎓 실력 분석 — 모드별 강점/약점/추천/숙련도 (적응형, 사용자 안전 노출만) |
 | POST | `/api/game/training-profile/reset` | 현재 사용자 적응형 메모리만 초기화 (계정·거래기록 보존) |
 | POST | `/api/chat/card` | 대화 전 프로필/매물 카드 (정답지 미포함) |
-| POST | `/api/chat/start·message·flag·resolve` | 거래 대화 (모드 자동 판별) — 결과에 적응형 학습 피드백 포함 |
+| POST | `/api/chat/start·message·flag·resolve` | 거래 대화 (모드 자동 판별) — start 응답에 연결된 미션, resolve 응답에 적응형 학습 피드백 + 미션 채점 결과 포함 |
+| GET | `/api/game/missions/available` | 현재 모드의 미션 카탈로그 + 활성 미션 + 지금 제안할 미션 |
+| POST | `/api/game/missions/accept` | 미션 수락(활성화) — `{mission_key, session_id?}` |
+| POST | `/api/game/missions/skip` | 활성 미션 포기 — `{mission_id}` |
+| GET | `/api/game/missions/active` | 현재 활성 미션 (`?session_id=` 로 특정 세션 것만) |
+| POST | `/api/game/missions/clear-current` | 현재 모드의 활성 미션 포기(다른 미션 다시 받기용) |
 
 ---
 
@@ -351,16 +405,30 @@ safedeal-town/
 22. `MARKET_LISTING_PROVIDER=manual_import` 로 둔 샘플(JSON)의 **개인정보(이름/전화/이메일/주소/계좌/URL)가 제거**된다.
 23. 어떤 마켓 제공자도 **실서비스 스크래핑을 하지 않는다** (synthetic 폴백 보장).
 
+### 미션 / 돌발 퀘스트 점검
+24. 마을 입장 직후(또는 역할 전환 직후) 활성 미션이 없으면 **미션 제안 카드**가 뜬다. 건너뛰어도 게임은 그대로 진행된다.
+25. 구매자 모드에서 `delivery_only_buyer` 미션을 수락하면 HUD에 **작은 미션 칩**이 뜬다.
+26. 대화에서 **"직거래만 할게요" 류로만 말하고** 구매하면, 기본 거래 채점(사기/정상)과 별개로
+    **미션은 실패**로 표시되고 "직거래가 불가능한 상황에서 택배거래를 훈련하는 미션이었다"는 설명이 뜬다.
+27. 다시 미션을 받아 **실물 인증 요청 + 안전한 절차(택배/안전결제) 언급**을 하고 정상 거래를 완료하면
+    **미션이 성공**하고, XP/신뢰도 보너스 + 배지가 결과 모달에 보인다.
+28. 판매자 모드에서 `refund_boundary_seller` 미션을 수락하고 **기록/근거 중심으로 침착하게** 환불을 거절하면
+    미션이 성공한다.
+29. 같은 미션에서 **욕설/협박성 표현**으로 대응하면 기본 판정이 `unsafe_response` 로 깎이고 **미션도 실패**한다.
+30. HUD 미션 칩 → 펼치기 → **미션 포기** 버튼으로 언제든 미션을 취소할 수 있다.
+31. 미션은 NPC 의 숨은 역할/수법을 전혀 노출하지 않는다 (미션 카드/HUD/결과 어디에도 정답지 없음).
+32. `python run.py` 재시작 후에도 기존 계정/거래 기록이 보존되고 `user_active_missions` 테이블이 생성돼 있다.
+
 ### 적응형 엔진 점검
-24. 구매자 모드 한 판을 마치면 `ai_session_outcomes` 에 행이 생기고 `ai_user_training_memory` 가 갱신된다.
-25. 여러 판을 더 하면 셀렉터가 **숙달·최근 패턴은 덜**, **약한 패턴은 더** 고른다.
-26. 판매자 모드 패턴은 구매자 모드와 **분리 저장**된다(`game_role` 구분).
-27. 📒 전적실 → **🎓 실력 분석** 에 모드별 강점/약점/추천/숙련도가 보인다.
-28. `ADAPTIVE_SCENARIOS_ENABLED=false` 면 게임이 **이전과 동일**하게 동작(적응형 기록 없음).
-29. `STORE_REDACTED_TRANSCRIPTS=true` 로 두고 채팅에 전화/이메일/URL 을 입력하면 저장된 대화가 **비식별화**된다.
-30. `AI_MODE=local_claude` 에서 CLI 실패 시에도 게임/적응형 기록이 **mock 폴백**으로 이어진다.
-31. 프론트는 **결과 화면 이전에 숨은 역할/수법/패턴 키를 받지 않는다**(개발자도구로도 안 보임).
-32. **♻️ 메모리 초기화** 또는 `POST /api/game/training-profile/reset` 후 적응형 데이터만 지워지고 **계정·거래 기록은 유지**된다.
+33. 구매자 모드 한 판을 마치면 `ai_session_outcomes` 에 행이 생기고 `ai_user_training_memory` 가 갱신된다.
+34. 여러 판을 더 하면 셀렉터가 **숙달·최근 패턴은 덜**, **약한 패턴은 더** 고른다.
+35. 판매자 모드 패턴은 구매자 모드와 **분리 저장**된다(`game_role` 구분).
+36. 📒 전적실 → **🎓 실력 분석** 에 모드별 강점/약점/추천/숙련도가 보인다.
+37. `ADAPTIVE_SCENARIOS_ENABLED=false` 면 게임이 **이전과 동일**하게 동작(적응형 기록 없음).
+38. `STORE_REDACTED_TRANSCRIPTS=true` 로 두고 채팅에 전화/이메일/URL 을 입력하면 저장된 대화가 **비식별화**된다.
+39. `AI_MODE=local_claude` 에서 CLI 실패 시에도 게임/적응형 기록이 **mock 폴백**으로 이어진다.
+40. 프론트는 **결과 화면 이전에 숨은 역할/수법/패턴 키를 받지 않는다**(개발자도구로도 안 보임).
+41. **♻️ 메모리 초기화** 또는 `POST /api/game/training-profile/reset` 후 적응형 데이터만 지워지고 **계정·거래 기록은 유지**된다.
 
 빠른 자동 점검(선택):
 ```bash

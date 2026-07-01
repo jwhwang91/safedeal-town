@@ -12,7 +12,7 @@ import sqlite3
 from collections import Counter
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.ai import adaptive_debug, adaptive_repository, adaptive_selector
 from app.ai import pattern_taxonomy as taxonomy
@@ -20,16 +20,19 @@ from app.config import get_settings
 from app.database import db_dependency
 from app.deps import get_current_user
 from app.models import (
+    AcceptMissionRequest,
     BuyerPreferenceRequest,
     EquipRequest,
     LocationRequest,
     RoleSetupRequest,
     RoleSwitchRequest,
     SellerListingRequest,
+    SkipMissionRequest,
     UnequipRequest,
     UpdateAvatarRequest,
 )
 from app import geoip
+from app import missions as missions_mgr
 from app import preferences as prefs_mgr
 from app import rewards as rewards_mgr
 from app import spawns as spawn_mgr
@@ -440,6 +443,79 @@ def accept_inquiry(
     from app.routers.chat import start_chat
     body = StartChatRequest(inquiry_id=inquiry_id)
     return start_chat(body, user, conn)
+
+
+# ============================================================
+#  미션 / 돌발 퀘스트
+# ============================================================
+@router.get("/missions/available")
+def get_available_missions_route(
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """현재 모드에서 고를 수 있는 미션 카탈로그 + 활성 미션 + 지금 제안할 미션."""
+    role = user["game_role"] or "buyer"
+    active = missions_mgr.get_active_mission(conn, user["id"], game_role=role)
+    suggested = None if active else missions_mgr.offer_mission(conn, user["id"], role)
+    return {
+        "missions": missions_mgr.get_available_missions(role),
+        "active": active,
+        "suggested": suggested,
+    }
+
+
+@router.post("/missions/accept")
+def accept_mission_route(
+    body: AcceptMissionRequest,
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """제안된 미션을 수락해 활성화한다."""
+    role = missions_mgr.mission_game_role(body.mission_key)
+    if role is None:
+        raise HTTPException(status_code=400, detail="알 수 없는 미션이에요.")
+    if role != (user["game_role"] or "buyer"):
+        raise HTTPException(status_code=400, detail="현재 모드에서는 수락할 수 없는 미션이에요.")
+    try:
+        return missions_mgr.accept_mission(conn, user["id"], body.mission_key, body.session_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/missions/skip")
+def skip_mission_route(
+    body: SkipMissionRequest,
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """활성 미션을 포기(건너뛰기)한다."""
+    missions_mgr.skip_mission(conn, user["id"], body.mission_id)
+    return {"skipped": True}
+
+
+@router.get("/missions/active")
+def get_active_mission_route(
+    session_id: str | None = Query(default=None),
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """현재 활성 미션 (session_id 를 주면 그 세션에 연결된 미션만)."""
+    role = user["game_role"] or "buyer"
+    mission = missions_mgr.get_active_mission(conn, user["id"], session_id=session_id, game_role=role)
+    return {"mission": mission}
+
+
+@router.post("/missions/clear-current")
+def clear_current_mission_route(
+    user: sqlite3.Row = Depends(get_current_user),
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> dict:
+    """현재 모드의 활성 미션을 포기한다 (다른 미션을 다시 받고 싶을 때)."""
+    role = user["game_role"] or "buyer"
+    active = missions_mgr.get_active_mission(conn, user["id"], game_role=role)
+    if active:
+        missions_mgr.skip_mission(conn, user["id"], active["id"])
+    return {"cleared": True}
 
 
 # ============================================================

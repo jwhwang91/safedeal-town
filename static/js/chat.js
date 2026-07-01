@@ -490,6 +490,7 @@
       chatOverlay.classList.add("hidden");
       renderResult(result);
       SafeDealGame.refreshWorld();
+      if (global.SafeDealMissions) SafeDealMissions.refreshActive();
     } catch (err) {
       hideTyping();
       SafeDeal.toast(err.message);
@@ -603,6 +604,9 @@
 
     // 적응형 학습 피드백 (결과 이후에만 — 라벨/원칙만)
     renderLearning(r.learning);
+
+    // 미션(퀘스트) 결과 (있을 때만)
+    if (global.SafeDealMissions) SafeDealMissions.renderResult(r.mission);
 
     // 대화 다시 보기
     const tr = document.getElementById("result-transcript");

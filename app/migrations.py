@@ -62,6 +62,8 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     # 동적 NPC/매물 (정답지는 서버 전용 — 클라이언트로 직렬화되지 않음)
     _add_column_if_missing(conn, "trade_sessions", "session_npc_json", "session_npc_json TEXT")
     _add_column_if_missing(conn, "trade_sessions", "market_seed_json", "market_seed_json TEXT")
+    # 이 거래에 연결된 활성 미션(선택)
+    _add_column_if_missing(conn, "trade_sessions", "active_mission_id", "active_mission_id TEXT")
 
     # ---- trade_results: 모드 구분 + 동적 NPC 기록 + 체크리스트/보상 ----
     _add_column_if_missing(
@@ -152,6 +154,29 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_seller_inq_user "
         "ON seller_inquiries(user_id, status)"
+    )
+
+    # ---- 미션 / 돌발 퀘스트 (스키마는 schema.sql 과 동일하게 유지) ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_active_missions (
+            id           TEXT PRIMARY KEY,
+            user_id      INTEGER NOT NULL,
+            session_id   TEXT,
+            mission_key  TEXT NOT NULL,
+            game_role    TEXT NOT NULL,
+            mission_json TEXT NOT NULL DEFAULT '{}',
+            status       TEXT NOT NULL DEFAULT 'active',
+            reward_json  TEXT NOT NULL DEFAULT '{}',
+            created_at   TEXT NOT NULL,
+            completed_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_missions_user "
+        "ON user_active_missions(user_id, game_role, status)"
     )
 
     # ---- 인벤토리: 아이템 정의 / 보유 / 장착 ----

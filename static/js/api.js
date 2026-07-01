@@ -169,6 +169,29 @@
     resetTrainingProfile() {
       return request("/api/game/training-profile/reset", { method: "POST" });
     },
+    // ---------- 미션(퀘스트) ----------
+    getMissions() {
+      return request("/api/game/missions/available");
+    },
+    acceptMission(missionKey, sessionId) {
+      return request("/api/game/missions/accept", {
+        method: "POST",
+        body: { mission_key: missionKey, session_id: sessionId || null },
+      });
+    },
+    skipMission(missionId) {
+      return request("/api/game/missions/skip", {
+        method: "POST",
+        body: { mission_id: missionId },
+      });
+    },
+    getActiveMission(sessionId) {
+      const qs = sessionId ? "?session_id=" + encodeURIComponent(sessionId) : "";
+      return request("/api/game/missions/active" + qs);
+    },
+    clearCurrentMission() {
+      return request("/api/game/missions/clear-current", { method: "POST" });
+    },
   };
 
   /* ---------- 채팅(거래) ---------- */

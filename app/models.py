@@ -159,3 +159,13 @@ class ResolveTradeRequest(BaseModel):
     )
     # 거래 체크리스트에서 사용자가 직접 체크한 항목 키 (선택). 올바른 결정일 때만 소폭 가점.
     checklist: list[str] = Field(default_factory=list, max_length=12)
+
+
+# ---------- 미션 / 돌발 퀘스트 ----------
+class AcceptMissionRequest(BaseModel):
+    mission_key: str = Field(min_length=1, max_length=60, pattern=r"^[a-z0-9_]+$")
+    session_id: str | None = None
+
+
+class SkipMissionRequest(BaseModel):
+    mission_id: str = Field(min_length=1, max_length=64)

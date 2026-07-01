@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from app import aftermath as aftermath_mod
+from app import missions as missions_mgr
 from app import preferences as prefs_mgr
 from app import rewards as rewards_mgr
 from app import spawns as spawn_mgr
@@ -409,13 +410,17 @@ def start_chat(
                 status_code=409,
                 detail="방금 다른 곳에서 응대를 시작했거나 만료된 문의예요. 다른 문의를 골라 주세요.",
             )
+    # 아직 세션에 안 붙은 활성 미션(돌발 퀘스트)이 있으면 이번 세션에 연결한다.
+    attached_mission = missions_mgr.attach_active_mission_to_session(conn, user["id"], session_id, mode)
+    active_mission_id = attached_mission["id"] if attached_mission else None
     conn.execute(
         "INSERT INTO trade_sessions (id, user_id, npc_id, status, game_role, "
         "counterparty_kind, scenario_type, spawn_instance_id, session_npc_json, "
-        "market_seed_json, started_at) "
-        "VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)",
+        "market_seed_json, active_mission_id, started_at) "
+        "VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)",
         (session_id, user["id"], npc["id"], mode, npc["npc_kind"],
-         npc["role"], body.spawn_instance_id, session_npc_json, market_seed_json, _now()),
+         npc["role"], body.spawn_instance_id, session_npc_json, market_seed_json,
+         active_mission_id, _now()),
     )
     # 선택된 패턴/변주를 서버 전용 컨텍스트로 저장 (프론트로는 안 나감)
     _store_adaptive_context(conn, session_id, user["id"], mode, adaptive_ctx)
@@ -492,6 +497,8 @@ def start_chat(
         "opening": opening_payload,
         "suggested_messages": _BUYER_SUGGESTED_MESSAGES if requires_player_first else [],
         "max_turns": _MAX_PLAYER_TURNS,
+        # 이 세션에 연결된 활성 미션(돌발 퀘스트), 없으면 None.
+        "mission": attached_mission,
     }
 
 
@@ -684,6 +691,21 @@ def _resolve_buyer_mode(conn, user, sess, npc, transcript, decision, checklist=N
         "player_misconduct": -12,
     }.get(result["verdict"], 0)
 
+    # 이 세션에 연결된 활성 미션(돌발 퀘스트)이 있으면 규칙 기반으로 채점하고 보너스를 반영한다.
+    active_mission = missions_mgr.get_active_mission(conn, user["id"], session_id=sess["id"])
+    mission_response = None
+    if active_mission:
+        mission_result = missions_mgr.evaluate_mission_completion(
+            active_mission, result, transcript, checklist=checked
+        )
+        if mission_result["success"]:
+            preview = active_mission.get("reward_preview") or {}
+            xp_delta += preview.get("xp_bonus", 0)
+            trust_delta += preview.get("trust_bonus", 0)
+        mission_response = missions_mgr.finalize_mission(
+            conn, user, active_mission["id"], mission_result
+        )
+
     coin_delta, gain_item, lose_item = _economy_delta("buyer", result["verdict"], correct, npc)
     econ = _resolve_economy(user, coin_delta, gain_item, lose_item)
 
@@ -720,6 +742,7 @@ def _resolve_buyer_mode(conn, user, sess, npc, transcript, decision, checklist=N
         "aftermath": aftermath_mod.aftermath_for(result["verdict"]),
         "annotated_transcript": annotated,
         "learning": learning,
+        "mission": mission_response,
     }
 
 
@@ -741,6 +764,21 @@ def _resolve_seller_mode(conn, user, sess, npc, transcript, decision, checklist=
         "over_refunded": -6, "unsafe_response": -10, "lost_sale": -3,
         "missed_legitimate_claim": -6, "player_misconduct": -12,
     }.get(result["verdict"], 0)
+
+    # 이 세션에 연결된 활성 미션(돌발 퀘스트)이 있으면 규칙 기반으로 채점하고 보너스를 반영한다.
+    active_mission = missions_mgr.get_active_mission(conn, user["id"], session_id=sess["id"])
+    mission_response = None
+    if active_mission:
+        mission_result = missions_mgr.evaluate_mission_completion(
+            active_mission, result, transcript, checklist=checked
+        )
+        if mission_result["success"]:
+            preview = active_mission.get("reward_preview") or {}
+            xp_delta += preview.get("xp_bonus", 0)
+            trust_delta += preview.get("trust_bonus", 0)
+        mission_response = missions_mgr.finalize_mission(
+            conn, user, active_mission["id"], mission_result
+        )
 
     coin_delta, gain_item, lose_item = _economy_delta("seller", result["verdict"], correct, npc)
     econ = _resolve_economy(user, coin_delta, gain_item, lose_item)
@@ -781,6 +819,7 @@ def _resolve_seller_mode(conn, user, sess, npc, transcript, decision, checklist=
         "aftermath": aftermath_mod.aftermath_for(result["verdict"]),
         "annotated_transcript": annotated,
         "learning": learning,
+        "mission": mission_response,
     }
 
 

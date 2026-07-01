@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
 <!-- ?v= 는 캐시 무효화용. 정적 파일을 고칠 때마다 숫자를 올리면 브라우저가 새로 받는다. -->
-<link rel="stylesheet" href="/static/css/style.css?v=12" />
+<link rel="stylesheet" href="/static/css/style.css?v=13" />
 </head>
 <body>
 
@@ -137,6 +137,10 @@
         <span class="hud-market-text" id="hud-market-text"></span>
         <button class="hud-market-edit" id="btn-market-edit" type="button">검색 변경</button>
       </span>
+      <span class="hud-mission hidden" id="hud-mission" title="진행중인 미션">
+        <span class="hud-mission-text" id="hud-mission-text"></span>
+        <button class="hud-mission-toggle" id="hud-mission-toggle" type="button">▾</button>
+      </span>
     </div>
     <div class="hud-center">
       <div class="hud-stat"><span class="hud-label">Lv</span><span id="hud-level">1</span></div>
@@ -157,12 +161,14 @@
       <button class="hud-btn" id="btn-logout">나가기</button>
     </div>
   </header>
+  <!-- 진행중인 미션 상세 (HUD 미션 칩 토글로 열림) -->
+  <div class="mission-detail-panel hidden" id="mission-detail-panel"></div>
 
   <!-- 게임 캔버스 -->
   <div id="stage">
     <canvas id="game-canvas" width="960" height="640"></canvas>
     <div id="town-name" class="hidden">🏘️ <span id="town-name-text"></span></div>
-    <div id="build-badge" title="실행 중인 클라이언트 빌드">build v10</div>
+    <div id="build-badge" title="실행 중인 클라이언트 빌드">build v11</div>
     <div id="interact-hint" class="hidden">
       <span class="key">E</span> 또는 <span class="key">Space</span> — 대화하기
     </div>
@@ -192,6 +198,27 @@
     <div class="card-actions">
       <button class="btn-walk-card" id="card-cancel">둘러보기</button>
       <button class="btn-primary" id="card-start">💬 대화 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 미션(퀘스트) 제안 오버레이 ================= -->
+<div id="mission-overlay" class="overlay hidden">
+  <div class="mission-window">
+    <header class="card-header">
+      <div class="card-id">
+        <h3 id="mission-title">미션 제안</h3>
+      </div>
+      <button class="chat-close" id="mission-close" title="닫기">✕</button>
+    </header>
+    <div class="mission-body">
+      <p id="mission-situation"></p>
+      <ul class="mission-constraint-list" id="mission-constraints"></ul>
+      <p class="mission-reward-preview" id="mission-reward-preview"></p>
+    </div>
+    <div class="card-actions">
+      <button class="btn-walk-card" id="mission-skip">건너뛰기</button>
+      <button class="btn-primary" id="mission-accept">수락하기</button>
     </div>
   </div>
 </div>
@@ -314,6 +341,14 @@
     <div class="result-section hidden" id="reward-items-section">
       <h4>🎁 거래 가방에 들어온 보상</h4>
       <div class="reward-items" id="result-reward-items"></div>
+    </div>
+
+    <div class="result-section hidden" id="mission-result-section">
+      <h4>🎯 미션 결과</h4>
+      <div id="mission-outcome-chip"></div>
+      <p id="mission-reason"></p>
+      <p id="mission-lesson"></p>
+      <div id="mission-bonus-chips"></div>
     </div>
 
     <div class="result-section">
@@ -445,18 +480,19 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/static/js/api.js?v=12"></script>
-<script src="/static/js/auth.js?v=12"></script>
-<script src="/static/js/avatar.js?v=12"></script>
-<script src="/static/js/sprites.js?v=12"></script>
-<script src="/static/js/world_map.js?v=12"></script>
-<script src="/static/js/spawn_manager.js?v=12"></script>
-<script src="/static/js/game.js?v=12"></script>
-<script src="/static/js/listing_setup.js?v=12"></script>
-<script src="/static/js/setup.js?v=12"></script>
-<script src="/static/js/checklist.js?v=12"></script>
-<script src="/static/js/chat.js?v=12"></script>
-<script src="/static/js/inventory.js?v=12"></script>
-<script src="/static/js/main.js?v=12"></script>
+<script src="/static/js/api.js?v=13"></script>
+<script src="/static/js/auth.js?v=13"></script>
+<script src="/static/js/avatar.js?v=13"></script>
+<script src="/static/js/sprites.js?v=13"></script>
+<script src="/static/js/world_map.js?v=13"></script>
+<script src="/static/js/spawn_manager.js?v=13"></script>
+<script src="/static/js/game.js?v=13"></script>
+<script src="/static/js/listing_setup.js?v=13"></script>
+<script src="/static/js/setup.js?v=13"></script>
+<script src="/static/js/checklist.js?v=13"></script>
+<script src="/static/js/chat.js?v=13"></script>
+<script src="/static/js/inventory.js?v=13"></script>
+<script src="/static/js/missions.js?v=13"></script>
+<script src="/static/js/main.js?v=13"></script>
 </body>
 </html>

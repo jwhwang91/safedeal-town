@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS trade_sessions (
     spawn_instance_id TEXT,                       -- 어느 스폰에서 시작했나 (선택)
     session_npc_json  TEXT,                       -- 동적 생성된 NPC(정답지 포함, 서버 전용). 없으면 npcs 테이블 사용
     market_seed_json  TEXT,                       -- 이 거래에 쓰인 매물 씨앗(비식별 시장 맥락)
+    active_mission_id TEXT,                       -- 이 거래에 연결된 활성 미션(선택, user_active_missions.id)
     started_at      TEXT NOT NULL,
     ended_at        TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -182,6 +183,21 @@ CREATE TABLE IF NOT EXISTS seller_inquiries (
     FOREIGN KEY (npc_id)   REFERENCES npcs(id)          ON DELETE CASCADE
 );
 
+-- ----- 미션 / 돌발 퀘스트 (플레이어가 수락한 활성 미션) -----
+CREATE TABLE IF NOT EXISTS user_active_missions (
+    id           TEXT PRIMARY KEY,
+    user_id      INTEGER NOT NULL,
+    session_id   TEXT,
+    mission_key  TEXT NOT NULL,
+    game_role    TEXT NOT NULL,
+    mission_json TEXT NOT NULL DEFAULT '{}',
+    status       TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'completed' | 'failed' | 'skipped'
+    reward_json  TEXT NOT NULL DEFAULT '{}',
+    created_at   TEXT NOT NULL,
+    completed_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- ----- 인벤토리 아이템 정의 (거래 도구/배지/코스튬) -----
 CREATE TABLE IF NOT EXISTS items (
     id          TEXT PRIMARY KEY,
@@ -245,3 +261,4 @@ CREATE INDEX IF NOT EXISTS idx_results_user     ON trade_results(user_id);
 CREATE INDEX IF NOT EXISTS idx_spawns_user      ON active_spawns(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_user_items_user  ON user_items(user_id);
 CREATE INDEX IF NOT EXISTS idx_seller_inq_user  ON seller_inquiries(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_missions_user    ON user_active_missions(user_id, game_role, status);

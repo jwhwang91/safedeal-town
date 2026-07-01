@@ -85,6 +85,23 @@ ITEM_DEFS = [
     _item("badge_spotter", "정상 판매자 구분 배지", "badge", "rare", BADGE_SLOT,
           "정상 판매자를 정확히 알아본 증표.", effect_key="honest_spotter"),
 
+    # ---------- 미션 훈련 배지 (돌발 퀘스트 완료 증표) ----------
+    _item("badge_delivery_survivor", "배송거래 생존자 배지", "badge", "rare", BADGE_SLOT,
+          "직거래가 어려운 상황에서도 택배거래를 안전하게 마친 증표.",
+          effect_key="mission_delivery_survivor"),
+    _item("badge_safe_payment_pro", "플랫폼 안전결제 숙련자 배지", "badge", "rare", BADGE_SLOT,
+          "외부 결제 없이 플랫폼 안전결제만으로 거래를 마친 증표.",
+          effect_key="mission_safe_payment_pro"),
+    _item("badge_boundary_keeper", "경계 지킴이 배지", "badge", "rare", BADGE_SLOT,
+          "사적 연락 요구를 플랫폼 안에서 끝까지 거절한 증표.",
+          effect_key="mission_boundary_keeper"),
+    _item("badge_evidence_first", "증거 중심 대응 배지", "badge", "rare", BADGE_SLOT,
+          "감정 대신 기록과 증거로 침착하게 대응한 증표.",
+          effect_key="mission_evidence_first"),
+    _item("badge_manner_blocker", "비매너 차단 배지", "badge", "rare", BADGE_SLOT,
+          "과도한 요구에도 기준선을 지키고 비매너를 차단한 증표.",
+          effect_key="mission_manner_blocker"),
+
     # ---------- 거래 도구 (체크리스트/힌트/답변칩) ----------
     _item("tool_price_radar", "시세 레이더", "tool", "uncommon", "tool",
           "구매 시 시세 대비 가격이 수상하면 카드에 주의 신호를 띄운다.",
