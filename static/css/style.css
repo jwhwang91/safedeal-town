@@ -111,18 +111,28 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
    ============================================================ */
 #game-screen { flex-direction: column; }
 
+/* 상단 HUD — 게임 HUD 느낌. 세 구역(브랜드/스탯/버튼)이 함께 스케일하고,
+   좁아지면 버튼 라벨과 브랜드 텍스트가 접혀 아이콘만 남는다(웹 관리자패널 X). */
 #hud {
   display: flex; align-items: center; justify-content: space-between;
-  padding: .5rem 1rem; background: var(--ink);
-  color: var(--cream); flex-shrink: 0; gap: 1rem;
+  gap: clamp(.4rem, 1.5vw, 1rem);
+  padding: clamp(.35rem, 1vw, .55rem) clamp(.5rem, 2vw, 1rem);
+  background: var(--ink); color: var(--cream); flex-shrink: 0;
 }
-.hud-logo { font-family: 'Jua', sans-serif; font-size: 1.15rem; color: var(--gold); }
-.hud-center { display: flex; align-items: center; gap: 1.2rem; }
-.hud-stat { display: flex; align-items: center; gap: .4rem; font-size: .95rem; }
-.hud-label { font-size: .72rem; color: #b9ad97; }
-.hud-xp { gap: .5rem; }
+.hud-left { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-shrink: 1; }
+.hud-logo {
+  font-family: 'Jua', sans-serif; font-size: clamp(1rem, 2.4vw, 1.2rem);
+  color: var(--gold); display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap;
+}
+.hud-center {
+  display: flex; align-items: center; gap: clamp(.5rem, 1.6vw, 1.1rem);
+  min-width: 0; flex-shrink: 1; overflow: hidden;
+}
+.hud-stat { display: flex; align-items: center; gap: .35rem; font-size: clamp(.8rem, 1.8vw, .95rem); white-space: nowrap; }
+.hud-label { font-size: clamp(.62rem, 1.4vw, .72rem); color: #b9ad97; }
+.hud-xp { gap: .45rem; }
 .xp-bar {
-  width: 110px; height: 10px; background: #4f4636;
+  width: clamp(48px, 10vw, 110px); height: 9px; background: #4f4636;
   border-radius: 6px; overflow: hidden;
 }
 .xp-fill {
@@ -130,64 +140,78 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
   background: linear-gradient(90deg, var(--gold), var(--terracotta));
   transition: width .5s;
 }
-.hud-right { display: flex; gap: .4rem; }
+.hud-right { display: flex; gap: clamp(.25rem, .8vw, .45rem); flex-shrink: 0; }
 .hud-btn {
   font-family: 'Gowun Dodum', sans-serif; font-size: .82rem;
   background: #4f4636; color: var(--cream);
   border: none; border-radius: 9px; padding: .45rem .7rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; transition: background .15s;
 }
 .hud-btn:hover { background: var(--terracotta); }
+.hud-ic { font-size: 1rem; line-height: 1; }
 
-/* HUD 마켓 바: 찾는 물건(구매) / 내 판매글(판매) + 편집 버튼 */
-.hud-market {
-  display: inline-flex; align-items: center; gap: .45rem;
-  margin-left: .5rem; max-width: 42vw;
-  background: rgba(255,250,240,.14); border-radius: 10px; padding: .2rem .3rem .2rem .6rem;
+/* ---------- 무대 위 플로팅 상황 칩 (찾는 물건 / 진행중 미션) ----------
+   HUD 를 어지럽히지 않도록 무대 좌상단에 얹는다. */
+#stage-chips {
+  position: absolute; top: 14px; left: 14px; z-index: 6;
+  display: flex; flex-direction: column; gap: .4rem; align-items: flex-start;
+  max-width: min(340px, 72vw);
 }
-.hud-market.hidden { display: none; }
-.hud-market-text {
-  font-size: .8rem; color: var(--cream);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32vw;
+/* 동네 이름 팻말이 있으면 그 아래로 내려 겹치지 않게 (JS 가 town-name 표시 시 클래스 부여) */
+#stage.has-townname #stage-chips { top: 52px; }
+.stage-chip {
+  display: inline-flex; align-items: center; gap: .45rem; max-width: 100%;
+  background: rgba(255,250,240,.96); border: 2px solid var(--ink);
+  border-radius: 12px; padding: .28rem .35rem .28rem .6rem; box-shadow: var(--shadow-sm);
 }
-.hud-market-edit {
+.stage-chip.hidden { display: none; }
+.hud-market-text, .hud-mission-text {
+  font-size: .8rem; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.hud-market-edit, .hud-mission-toggle {
   font-family: 'Gowun Dodum', sans-serif; font-size: .74rem;
   background: var(--gold); color: var(--ink); border: none;
-  border-radius: 8px; padding: .25rem .55rem; cursor: pointer; white-space: nowrap;
+  border-radius: 8px; padding: .25rem .55rem; cursor: pointer; white-space: nowrap; flex-shrink: 0;
 }
-.hud-market-edit:hover { background: var(--terracotta); color: #fff; }
-
-/* HUD 미션 칩: 진행중인 미션 요약 + 펼침 토글 */
-.hud-mission {
-  display: inline-flex; align-items: center; gap: .45rem;
-  margin-left: .5rem; max-width: 42vw;
-  background: rgba(255,250,240,.14); border-radius: 10px; padding: .2rem .3rem .2rem .6rem;
-}
-.hud-mission.hidden { display: none; }
-.hud-mission-text {
-  font-size: .8rem; color: var(--cream);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32vw;
-}
-.hud-mission-toggle {
-  font-family: 'Gowun Dodum', sans-serif; font-size: .74rem;
-  background: var(--gold); color: var(--ink); border: none;
-  border-radius: 8px; padding: .25rem .55rem; cursor: pointer; white-space: nowrap;
-}
-.hud-mission-toggle:hover { background: var(--terracotta); color: #fff; }
+.hud-market-edit:hover, .hud-mission-toggle:hover { background: var(--terracotta); color: #fff; }
 .hud-mission-toggle.open { background: var(--terracotta); color: #fff; }
 
-/* 진행중인 미션 상세 드롭다운 패널 (HUD 바로 아래, 열었을 때만 표시) */
-.mission-detail-panel {
-  background: #fffdf7; border: 1.5px solid #e3d6ba; border-radius: 10px;
-  margin: .4rem .8rem 0; padding: .6rem .8rem; max-width: 480px;
-  font-size: .8rem; color: var(--ink-soft); line-height: 1.5;
+/* ---------- 사이드 도크 (미션 상세 / 인벤토리 공용) ----------
+   데스크톱: 무대 우측 세로 패널(마을은 계속 보임).  모바일: 하단 컴팩트 시트. */
+.side-dock {
+  position: absolute; z-index: 8;
+  top: 12px; right: 12px; bottom: 12px;
+  width: min(320px, 84vw);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--parchment); border: 3px solid var(--ink);
+  border-radius: 16px; box-shadow: 0 12px 0 rgba(58,50,38,.28);
+  animation: dockIn .18s ease;
 }
-.mission-detail-panel.hidden { display: none; }
-.mission-detail-panel p { margin: .3rem 0; }
-.mission-detail-panel .mission-reward-preview { color: var(--terracotta-dark); font-weight: 600; }
+.side-dock.side-dock-wide { width: min(520px, 94vw); }
+.side-dock.hidden { display: none !important; }
+@keyframes dockIn { from { transform: translateX(16px); opacity: .3; } to { transform: none; opacity: 1; } }
+.side-dock-head {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: .55rem .75rem; background: var(--ink); color: var(--gold); flex: 0 0 auto;
+}
+.side-dock-title { font-family: 'Jua', sans-serif; font-size: 1rem; }
+.side-dock-head-actions { display: flex; align-items: center; gap: .4rem; }
+.side-dock-close {
+  background: #4f4636; color: var(--cream); border: none;
+  width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 1rem; flex: 0 0 auto;
+}
+.side-dock-close:hover { background: var(--danger); }
+.side-dock-body { flex: 1 1 auto; overflow-y: auto; padding: .8rem; }
+
+/* 미션 상세 본문 */
+#mission-detail-body p { font-size: .85rem; line-height: 1.55; color: var(--ink-soft); margin: .3rem 0; }
+#mission-detail-body .mission-constraint-list { list-style: none; margin: .3rem 0; padding: 0; }
+#mission-detail-body .mission-reward-preview { color: var(--terracotta-dark); font-weight: 600; }
 .mission-give-up-btn {
-  font-family: 'Gowun Dodum', sans-serif; font-size: .76rem; cursor: pointer;
+  font-family: 'Gowun Dodum', sans-serif; font-size: .78rem; cursor: pointer;
   background: #fdeceb; border: 1.5px solid var(--danger-soft); color: var(--danger);
-  border-radius: 8px; padding: .3rem .6rem; margin-top: .3rem;
+  border-radius: 8px; padding: .35rem .7rem; margin-top: .5rem;
 }
 .mission-give-up-btn:hover { background: var(--danger); color: #fff; }
 
@@ -783,10 +807,31 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 ::-webkit-scrollbar-track { background: #eaddc4; }
 ::-webkit-scrollbar-thumb { background: #c9b88f; border-radius: 6px; }
 
+/* ---------- 반응형: HUD 접힘 + 사이드 도크 → 하단 시트 ---------- */
+@media (max-width: 1024px) {
+  .hud-btn-label { display: none; }        /* 좁아지면 버튼은 아이콘만 */
+  .hud-btn { padding: .45rem .55rem; }
+  .side-dock-head-actions .hud-btn-label { display: none; }
+}
+@media (max-width: 760px) {
+  .hud-logo-text { display: none; }        /* 브랜드는 이모지만 */
+  /* 사이드 도크(미션/인벤토리) → 하단에서 올라오는 컴팩트 시트 */
+  .side-dock, .side-dock.side-dock-wide {
+    top: auto; left: 8px; right: 8px; bottom: 8px; width: auto;
+    max-height: min(64vh, 500px); border-radius: 16px 16px 12px 12px; animation: sheetUp .18s ease;
+  }
+  .inv-layout { grid-template-columns: 1fr; overflow-y: auto; }
+  .inv-doll { order: -1; }
+  .inv-grid { max-height: 34vh; }
+}
+@media (max-width: 480px) {
+  .hud-stat.hud-hide-narrow { display: none; }   /* 코인/아이템 숨겨 핵심만 남긴다 */
+}
+@media (max-width: 380px) {
+  .hud-label { display: none; }             /* 아주 좁으면 라벨 없이 값만 */
+}
+
 @media (max-width: 600px) {
-  .hud-center { gap: .6rem; }
-  .xp-bar { width: 60px; }
-  .hud-logo { font-size: .95rem; }
   #objective-banner { font-size: .76rem; }
   .setup-avatar { flex-direction: column; align-items: center; }
   /* 채팅: 모바일에선 거의 전체화면 + 시트 조금 더 크게 */
@@ -895,8 +940,8 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 
 /* ---------- HUD 역할 배지 ---------- */
 .hud-role {
-  font-family: 'Jua', sans-serif; font-size: .78rem; margin-left: .6rem;
-  padding: .18rem .55rem; border-radius: 9px;
+  font-family: 'Jua', sans-serif; font-size: clamp(.66rem, 1.7vw, .8rem);
+  padding: .2rem .55rem; border-radius: 9px; white-space: nowrap; flex-shrink: 0;
 }
 .hud-role.buyer { background: #3f6fb0; color: #fff; }
 .hud-role.seller { background: var(--terracotta); color: #fff; }
@@ -916,48 +961,113 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 }
 
 /* ============================================================
-   거래 가방 (인벤토리)
+   거래 가방 (인벤토리) — Diablo/Lineage 식 페이퍼돌 + 아이템 그리드
+   #inventory-dock (.side-dock) 안에 들어간다.
    ============================================================ */
-.inv-window {
-  width: min(620px, 96vw); max-height: 90vh; overflow-y: auto;
-  background: var(--parchment); border: 3px solid var(--ink);
-  border-radius: 20px; box-shadow: 0 14px 0 rgba(58,50,38,.3); padding-bottom: 1.2rem;
+.inv-layout {
+  flex: 1 1 auto; min-height: 0; display: grid;
+  grid-template-columns: 200px 1fr; gap: .7rem; padding: .8rem;
 }
+/* 좌: 아바타 페이퍼돌 + 주변 장비 슬롯 */
+.inv-doll { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+.inv-doll-frame {
+  position: relative; width: 200px; height: 236px; flex: 0 0 auto;
+  background: radial-gradient(circle at 50% 40%, #fff8ec, #efe1c4 72%);
+  border: 2px solid #d8c9ad; border-radius: 16px;
+}
+.inv-avatar-wrap {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: #f0e3cc; border: 2px solid var(--ink); border-radius: 12px; padding: .3rem;
+}
+#inv-avatar-canvas { display: block; image-rendering: pixelated; }
+/* 장비 슬롯 — 아바타 좌우로 4개씩 */
+.eq-slot {
+  position: absolute; width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+  background: #fffdf7; border: 2px dashed #c9b88f;
+  display: flex; align-items: center; justify-content: center; font-size: 1.2rem; padding: 0;
+  transition: transform .08s, border-color .12s, background .12s;
+}
+.eq-slot .eq-ghost { opacity: .32; }
+.eq-slot.filled { border-style: solid; border-color: var(--gold); background: #fff7e6; }
+.eq-slot.drop-hot { border-color: var(--terracotta); background: #ffe9df; transform: scale(1.09); }
+.eq-slot:hover { border-color: var(--terracotta); }
+.eq-slot-hat       { top: 14px;  left: 8px; }
+.eq-slot-accessory { top: 66px;  left: 8px; }
+.eq-slot-badge     { top: 118px; left: 8px; }
+.eq-slot-frame     { top: 170px; left: 8px; }
+.eq-slot-shirt     { top: 14px;  right: 8px; }
+.eq-slot-pants     { top: 66px;  right: 8px; }
+.eq-slot-tool1     { top: 118px; right: 8px; }
+.eq-slot-tool2     { top: 170px; right: 8px; }
+.inv-doll-hint { font-size: .68rem; color: var(--ink-soft); text-align: center; line-height: 1.45; }
+.inv-doll-hint b { color: var(--terracotta-dark); }
+
+/* 우: 선택 아이템 상세 + 보유 그리드 */
+.inv-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.inv-detail {
+  background: #fff; border: 2px solid #e3d6ba; border-left-width: 5px; border-radius: 12px;
+  padding: .55rem .7rem; margin-bottom: .55rem; font-size: .8rem; color: var(--ink-soft); line-height: 1.45;
+}
+.inv-detail.hidden { display: none; }
+.inv-detail-head { display: flex; align-items: center; gap: .4rem; }
+.inv-detail-name { font-family: 'Jua', sans-serif; font-size: .95rem; color: var(--ink); }
+.inv-detail-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.inv-grid-title { font-size: .95rem; margin: .1rem 0 .45rem; }
+.inv-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: .5rem; align-content: start; overflow-y: auto; padding-right: .2rem;
+}
+.inv-empty { grid-column: 1 / -1; color: var(--ink-soft); font-size: .85rem; padding: .6rem 0; line-height: 1.5; }
+.inv-card {
+  background: #fff; border: 2px solid #e3d6ba; border-radius: 12px;
+  padding: .5rem .55rem; display: flex; flex-direction: column; gap: .2rem;
+  border-left-width: 5px; cursor: grab; user-select: none;
+}
+.inv-card:hover { border-color: var(--terracotta); }
+.inv-card.equipped { box-shadow: 0 0 0 2px var(--gold); }
+.inv-card.selected { border-color: var(--terracotta); box-shadow: 0 0 0 2px var(--terracotta); }
+.inv-card.dragging { opacity: .45; cursor: grabbing; }
+.inv-card-top { display: flex; justify-content: space-between; align-items: center; }
+.inv-icon { font-size: 1.4rem; }
+.inv-rarity { font-size: .64rem; padding: .05rem .4rem; border-radius: 6px; }
+.inv-name { font-family: 'Jua', sans-serif; font-size: .86rem; line-height: 1.2; }
+.inv-qty { color: var(--ink-soft); font-size: .74rem; }
+.inv-type { font-size: .7rem; color: var(--ink-soft); }
+.inv-mini-btn {
+  font-family: 'Jua', sans-serif; font-size: .8rem; cursor: pointer;
+  background: var(--sage); color: #fff; border: none; border-radius: 8px; padding: .35rem .7rem;
+}
+.inv-mini-btn.off { background: #c9bca3; color: var(--ink); }
+.inv-mini-btn:hover { filter: brightness(1.05); }
+
+.inv-detail-type { color: var(--ink-soft); font-size: .72rem; margin: .15rem 0; }
+.inv-detail-desc { margin-top: .3rem; }
+.inv-detail-effect { margin-top: .3rem; color: var(--terracotta-dark); font-size: .76rem; }
+.eq-slot.drop-ok { border-color: var(--sage); background: #eef6e8; }
+
+/* 전적실/훈련 리포트 헤더 액션(공용) + 안내문 — 인벤토리 밖에서도 쓰인다 */
 .inv-head-actions { display: flex; align-items: center; gap: .5rem; }
 .inv-hint { font-size: .8rem; color: var(--ink-soft); padding: .8rem 1.2rem 0; line-height: 1.5; }
 .inv-hint b { color: var(--terracotta-dark); }
-.inv-equipped { display: flex; flex-wrap: wrap; gap: .45rem; padding: .8rem 1.2rem .2rem; }
-.inv-empty-eq { font-size: .85rem; color: var(--ink-soft); }
-.inv-eq-chip {
-  display: flex; align-items: center; gap: .4rem;
-  background: #fff; border: 2px solid #e3d6ba; border-radius: 14px;
-  padding: .3rem .55rem; font-size: .82rem;
+
+/* NPC 포트레이트 (프로필 카드 / 채팅 헤더) — 색 원 대신 실제 이미지가 있으면 채운다.
+   클릭하면 라이트박스로 크게 볼 수 있다(cursor: zoom-in). */
+.card-avatar, .chat-avatar { overflow: hidden; }
+.npc-portrait { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; cursor: zoom-in; }
+
+/* 포트레이트 확대 뷰어 */
+.portrait-viewer {
+  position: relative; max-width: min(520px, 92vw); max-height: 88vh;
+  background: var(--parchment); border: 3px solid var(--ink);
+  border-radius: 20px; box-shadow: 0 14px 0 rgba(58,50,38,.3);
+  padding: .6rem; display: flex; align-items: center; justify-content: center;
+  animation: dockIn .18s ease;
 }
-.inv-eq-slot { font-size: .68rem; color: #fff; background: var(--ink-soft); border-radius: 6px; padding: .05rem .35rem; }
-.inv-eq-x { background: transparent; border: none; cursor: pointer; color: var(--danger); font-size: .8rem; }
-.inv-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: .6rem; padding: 0 1.2rem;
+.portrait-full {
+  display: block; max-width: 100%; max-height: calc(88vh - 1.4rem);
+  border-radius: 14px; object-fit: contain; background: #efe1c4;
 }
-.inv-empty { grid-column: 1 / -1; color: var(--ink-soft); font-size: .87rem; padding: .6rem 0; }
-.inv-card {
-  background: #fff; border: 2px solid #e3d6ba; border-radius: 12px;
-  padding: .55rem .6rem; display: flex; flex-direction: column; gap: .25rem;
-  border-left-width: 5px;
-}
-.inv-card.equipped { box-shadow: 0 0 0 2px var(--gold); }
-.inv-card-top { display: flex; justify-content: space-between; align-items: center; }
-.inv-icon { font-size: 1.5rem; }
-.inv-rarity { font-size: .68rem; padding: .05rem .4rem; border-radius: 6px; }
-.inv-name { font-family: 'Jua', sans-serif; font-size: .92rem; }
-.inv-qty { color: var(--ink-soft); font-size: .78rem; }
-.inv-type { font-size: .72rem; color: var(--ink-soft); }
-.inv-desc { font-size: .74rem; color: var(--ink-soft); line-height: 1.4; flex: 1; }
-.inv-btn {
-  margin-top: .3rem; font-family: 'Jua', sans-serif; font-size: .82rem; cursor: pointer;
-  background: var(--sage); color: #fff; border: none; border-radius: 8px; padding: .35rem;
-}
-.inv-btn.on { background: #c9bca3; color: var(--ink); }
+.portrait-viewer .chat-close { position: absolute; top: 10px; right: 10px; z-index: 2; }
 
 /* 희귀도 색 (좌측 테두리 + 텍스트 칩) */
 .rarity-common    { border-left-color: #b0a895; }

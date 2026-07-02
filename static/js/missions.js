@@ -19,11 +19,13 @@
   const skipBtn = document.getElementById("mission-skip");
   const closeBtn = document.getElementById("mission-close");
 
-  /* ---------- DOM: HUD 미션 칩 + 상세 패널 ---------- */
+  /* ---------- DOM: 무대 미션 칩 + 사이드 도크 상세 패널 ---------- */
   const hudChip = document.getElementById("hud-mission");
   const hudChipText = document.getElementById("hud-mission-text");
   const hudToggle = document.getElementById("hud-mission-toggle");
-  const detailPanel = document.getElementById("mission-detail-panel");
+  const detailPanel = document.getElementById("mission-detail-panel"); // .side-dock (aside)
+  const detailBody = document.getElementById("mission-detail-body");   // 실제 내용이 들어가는 곳
+  const detailClose = document.getElementById("mission-detail-close");
 
   /* ---------- DOM: 결과 모달 미션 섹션 ---------- */
   const resultSection = document.getElementById("mission-result-section");
@@ -146,23 +148,23 @@
   }
 
   function buildDetailPanel(mission) {
-    detailPanel.innerHTML = "";
+    detailBody.innerHTML = "";
 
     const situationP = document.createElement("p");
     situationP.textContent = mission.situation || "";
-    detailPanel.appendChild(situationP);
+    detailBody.appendChild(situationP);
 
     const list = document.createElement("ul");
     list.className = "mission-constraint-list";
     buildConstraintList(list, mission.constraints);
-    detailPanel.appendChild(list);
+    detailBody.appendChild(list);
 
     const rewardText = rewardPreviewText(mission.reward_preview);
     if (rewardText) {
       const rewardP = document.createElement("p");
       rewardP.className = "mission-reward-preview";
       rewardP.textContent = rewardText;
-      detailPanel.appendChild(rewardP);
+      detailBody.appendChild(rewardP);
     }
 
     const giveUpBtn = document.createElement("button");
@@ -173,15 +175,26 @@
     giveUpBtn.addEventListener("click", function () {
       giveUpMission(mission.id);
     });
-    detailPanel.appendChild(giveUpBtn);
+    detailBody.appendChild(giveUpBtn);
   }
+
+  // 사이드 도크 열기/닫기 (칩 토글 라벨도 함께 갱신)
+  function setPanelOpen(open) {
+    detailPanel.classList.toggle("hidden", !open);
+    hudToggle.classList.toggle("open", open);
+    hudToggle.textContent = open ? "접기 ▴" : "펼치기 ▾";
+    // 인벤토리 도크와 우측을 공유하므로 열 때 겹치지 않게 닫아준다
+    if (open && global.SafeDealInventory && SafeDealInventory.close) SafeDealInventory.close();
+  }
+  function closePanel() { setPanelOpen(false); }
 
   function renderHud(mission) {
     if (!mission) {
       hudChip.classList.add("hidden");
       detailPanel.classList.add("hidden");
-      detailPanel.innerHTML = "";
+      detailBody.innerHTML = "";
       hudToggle.classList.remove("open");
+      hudToggle.textContent = "펼치기 ▾";
       return;
     }
     hudChipText.textContent = "🎯 " + mission.title;
@@ -190,10 +203,9 @@
   }
 
   hudToggle.addEventListener("click", function () {
-    const willOpen = detailPanel.classList.contains("hidden");
-    detailPanel.classList.toggle("hidden", !willOpen);
-    hudToggle.classList.toggle("open", willOpen);
+    setPanelOpen(detailPanel.classList.contains("hidden"));
   });
+  if (detailClose) detailClose.addEventListener("click", closePanel);
 
   /* ---------- 결과 모달: 미션 성공/실패 ---------- */
   function makeChip(text, kind) {
@@ -262,5 +274,5 @@
     }
   }
 
-  global.SafeDealMissions = { checkAndOffer, refreshActive, renderResult };
+  global.SafeDealMissions = { checkAndOffer, refreshActive, renderResult, closePanel };
 })(window);

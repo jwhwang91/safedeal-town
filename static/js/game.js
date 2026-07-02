@@ -607,6 +607,9 @@
     const name = (map && map.town_name) || "";
     if (townNameTextEl) townNameTextEl.textContent = name;
     if (townNameEl) townNameEl.classList.toggle("hidden", !name);
+    // 동네 팻말이 보이면 무대 좌상단 상황 칩을 그 아래로 내려 겹치지 않게 한다.
+    const stageEl = document.getElementById("stage");
+    if (stageEl) stageEl.classList.toggle("has-townname", !!name);
     // town_name 에 이미 "중고타운" 이 들어있으므로 접미사를 또 붙이지 않는다.
     document.title = name ? name + " — 사기꾼은 누구?" : "중고타운 — 사기꾼은 누구?";
   }

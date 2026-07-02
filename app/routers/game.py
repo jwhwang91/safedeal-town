@@ -597,6 +597,8 @@ def _inventory_payload(conn: sqlite3.Connection, user: sqlite3.Row) -> dict:
     inv = rewards_mgr.list_inventory(conn, user["id"])
     inv["effects"] = sorted(rewards_mgr.equipped_effects(conn, user["id"]))
     inv["cosmetic_overrides"] = rewards_mgr.equipped_cosmetic_overrides(conn, user["id"])
+    # 병합 전 '기본 아바타'도 함께 준다 → 프론트가 인벤토리 미리보기에서 base + overrides 로 렌더.
+    inv["avatar_base"] = _avatar_of(user)
     return inv
 
 

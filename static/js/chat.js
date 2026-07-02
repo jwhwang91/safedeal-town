@@ -22,6 +22,11 @@
   const elAvatar = document.getElementById("chat-avatar");
   const elNpcName = document.getElementById("chat-npc-name");
   const elNpcDesc = document.getElementById("chat-npc-desc");
+
+  /* ---------- 포트레이트 확대 뷰어 ---------- */
+  const portraitOverlay = document.getElementById("portrait-overlay");
+  const portraitFull = document.getElementById("portrait-full");
+  const portraitClose = document.getElementById("portrait-close");
   const elItem = document.getElementById("listing-item");
   const elPrice = document.getElementById("listing-price");
   const elMarket = document.getElementById("listing-market");
@@ -269,9 +274,56 @@
     elCardListing.appendChild(row);
   }
 
+  // NPC 아바타: 서버가 준 포트레이트가 있으면 이미지로, 없거나 로드 실패하면 색 원으로 폴백.
+  // (포트레이트 URL 은 불투명한 스폰 id 만 담고 있어 정답(페르소나)을 노출하지 않는다.)
+  function setNpcAvatar(el, portraitUrl, spriteColor) {
+    if (!el) return;
+    el.innerHTML = "";
+    el.style.background = spriteColor || "#d9744f";
+    if (!portraitUrl) return;
+    const img = document.createElement("img");
+    img.className = "npc-portrait";
+    img.alt = "";
+    img.decoding = "async";
+    img.src = portraitUrl;
+    img.title = "클릭하면 크게 볼 수 있어요";
+    img.addEventListener("error", function () { img.remove(); });
+    img.addEventListener("click", function (e) {
+      e.stopPropagation();       // 카드/채팅 헤더의 다른 동작으로 번지지 않게
+      openPortrait(portraitUrl);
+    });
+    el.appendChild(img);
+  }
+
+  /* 초상 라이트박스 — 큰 이미지로 보기 (뒤 카드/채팅은 그대로 유지) */
+  function openPortrait(url) {
+    if (!portraitOverlay || !portraitFull || !url) return;
+    portraitFull.src = url;
+    portraitOverlay.classList.remove("hidden");
+  }
+  function closePortrait() {
+    if (!portraitOverlay) return;
+    portraitOverlay.classList.add("hidden");
+  }
+  if (portraitClose) portraitClose.addEventListener("click", closePortrait);
+  if (portraitOverlay) {
+    portraitOverlay.addEventListener("click", function (e) {
+      if (e.target === portraitOverlay) closePortrait();
+    });
+  }
+  // 라이트박스가 열려 있으면 ESC 는 라이트박스만 닫는다.
+  // (이 IIFE 뒤쪽의 카드/시트 ESC 핸들러보다 먼저 등록되므로 stopImmediatePropagation 으로 우선 처리)
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && portraitOverlay && !portraitOverlay.classList.contains("hidden")) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      closePortrait();
+    }
+  });
+
   function renderCard(card) {
     const seller = card.mode === "seller";
-    elCardAvatar.style.background = card.sprite_color || "#d9744f";
+    setNpcAvatar(elCardAvatar, card.portrait_url, card.sprite_color);
     elCardName.textContent = card.display_name || (seller ? "구매자" : "판매자");
     const roleWord = seller ? "구매 문의" : "판매자";
     elCardSub.textContent =
@@ -382,7 +434,7 @@
       };
 
       // 헤더
-      elAvatar.style.background = data.npc.sprite_color || "#d9744f";
+      setNpcAvatar(elAvatar, data.npc.portrait_url, data.npc.sprite_color);
       const roleWord = session.mode === "seller" ? "구매자" : "판매자";
       elNpcName.textContent = data.npc.name;
       elNpcDesc.textContent =

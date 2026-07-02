@@ -18,9 +18,11 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from app import aftermath as aftermath_mod
 from app import missions as missions_mgr
+from app import portraits as portrait_mgr
 from app import preferences as prefs_mgr
 from app import rewards as rewards_mgr
 from app import spawns as spawn_mgr
@@ -294,6 +296,91 @@ def _resolve_spawn(conn: sqlite3.Connection, user_id: int, body: StartChatReques
 
 
 # ---------------------------------------------------------------
+#  NPC 초상(얼굴) — 불투명 URL 로만 노출 (family/role/gender 비노출)
+# ---------------------------------------------------------------
+def _portrait_url(spawn_instance_id: str | None) -> str | None:
+    """스폰 id 로 만든 불투명 초상 URL (<img src> 용). id 가 없으면 None.
+
+    URL 에는 스폰 id(추측 불가 UUID)만 담긴다 → family/role/gender 가 새지 않는다.
+    """
+    if not spawn_instance_id:
+        return None
+    return f"/api/chat/portrait/{spawn_instance_id}"
+
+
+def _resolve_role_for_portrait(
+    conn: sqlite3.Connection, spawn_instance_id: str,
+) -> tuple[str | None, list] | None:
+    """스폰 id → (role, tactics). 공개 초상 엔드포인트 전용(인증 없음). 못 찾으면 None.
+
+    /card·/start 의 스폰→NPC 해석 로직을 재사용한다: 동적 NPC(dynamic_json)가 있으면
+    그 정답지를, 없으면 npcs 테이블의 role/tactics 를 쓴다. 진행 중 거래로 스폰이
+    이미 engaged/만료됐을 수 있어 trade_sessions 로도 폴백 조회한다.
+    """
+    npc_id = None
+    dynamic_json = None
+    row = conn.execute(
+        "SELECT npc_id, dynamic_json FROM active_spawns WHERE id = ?",
+        (spawn_instance_id,),
+    ).fetchone()
+    if row:
+        npc_id, dynamic_json = row["npc_id"], row["dynamic_json"]
+    else:
+        srow = conn.execute(
+            "SELECT npc_id, session_npc_json FROM trade_sessions "
+            "WHERE spawn_instance_id = ? ORDER BY started_at DESC LIMIT 1",
+            (spawn_instance_id,),
+        ).fetchone()
+        if srow:
+            npc_id, dynamic_json = srow["npc_id"], srow["session_npc_json"]
+
+    if npc_id is None and not dynamic_json:
+        return None
+
+    if dynamic_json:  # 동적 NPC 정답지 우선
+        try:
+            data = json.loads(dynamic_json)
+            if isinstance(data, dict):
+                return data.get("role"), (data.get("tactics") or [])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if npc_id:  # 정적 NPC 폴백
+        nrow = conn.execute(
+            "SELECT role, tactics_json FROM npcs WHERE id = ?", (npc_id,)
+        ).fetchone()
+        if nrow:
+            try:
+                tactics = json.loads(nrow["tactics_json"]) if nrow["tactics_json"] else []
+            except (json.JSONDecodeError, TypeError):
+                tactics = []
+            return nrow["role"], tactics
+    return None
+
+
+@router.get("/portrait/{spawn_instance_id}")
+def npc_portrait(
+    spawn_instance_id: str,
+    conn: sqlite3.Connection = Depends(db_dependency),
+) -> FileResponse:
+    """스폰 NPC 의 초상 이미지(공개·인증 없음).
+
+    <img> 태그로 로드되므로 Bearer 헤더를 실을 수 없어 공개로 둔다. 스폰 id 는 추측
+    불가한 UUID 라 허용 가능하다. 정답지 보호: 응답 URL/헤더/파일명 어디에도
+    family/role/gender 를 노출하지 않는다(filename 미지정 → Content-Disposition 자체가
+    안 붙음). 스폰을 모르거나 이미지를 못 고르면 404(누출 없는 일반 메시지).
+    """
+    resolved = _resolve_role_for_portrait(conn, spawn_instance_id)
+    if not resolved:
+        raise HTTPException(status_code=404, detail="Not found")
+    role, tactics = resolved
+    path = portrait_mgr.resolve_portrait_path(role, tactics, spawn_instance_id)
+    if not path or not path.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, media_type="image/png")
+
+
+# ---------------------------------------------------------------
 def _apply_adaptive_start(conn, user, npc, mode, session_npc_json, seller_listing):
     """시작 시 적응형 선택 + 안전한 페르소나 변주를 적용한다.
 
@@ -502,6 +589,8 @@ def start_chat(
             # 정답지 보호: 구매자 NPC 의 실제 visual_theme/category 는 유형과 상관관계가 있어
             # 내려보내지 않는다 (프론트는 쓰지 않음). 마을 스폰은 _public_spawn 이 역할 무관 테마를 준다.
             "appearance": npc["persona"].get("appearance", ""),
+            # 얼굴 이미지: 스폰 id 만 담은 불투명 URL (family/role/gender 비노출).
+            "portrait_url": _portrait_url(body.spawn_instance_id),
         },
         # 구매자 모드면 None — 프론트가 빈 채팅 + 빠른 문의 칩을 띄운다.
         "opening": opening_payload,
@@ -533,6 +622,9 @@ def npc_card(
     seller_listing = prefs_mgr.get_seller_listing(conn, user["id"]) if mode == "seller" else None
     spawn_key = body.spawn_instance_id or npc_id
     card = persona_factory.build_profile_card(npc, mode, spawn_key, seller_listing)
+    # 얼굴 이미지: 스폰 id 만 담은 불투명 URL (family/role/gender 비노출).
+    # npc_id 폴백(디버그)일 땐 URL 을 만들 수 없어 None — npc_id 는 role 을 노출하므로 절대 URL 에 안 넣는다.
+    card["portrait_url"] = _portrait_url(body.spawn_instance_id)
 
     # 판매자 모드: 구매자가 보낸 '첫 문의' 미리보기(중립·상품인지 — 유형 비노출).
     if mode == "seller":
