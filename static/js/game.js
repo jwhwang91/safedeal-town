@@ -226,9 +226,26 @@
     const card = document.createElement("div");
     card.className = "inquiry-card";
     card.dataset.inquiryId = s.inquiry_id;
+    // 헤더: 프로필 얼굴(불투명 URL) + 이름. 얼굴은 정답(정상/사기)을 노출하지 않는다.
+    const head = document.createElement("div");
+    head.className = "inquiry-card-head";
+    const avatar = document.createElement("div");
+    avatar.className = "inquiry-card-avatar";
+    avatar.style.background = s.sprite_color || "#d9744f";
+    if (s.portrait_url) {
+      const img = document.createElement("img");
+      img.className = "npc-portrait";
+      img.alt = "";
+      img.decoding = "async";
+      img.src = s.portrait_url;
+      img.addEventListener("error", function () { img.remove(); });
+      avatar.appendChild(img);
+    }
     const name = document.createElement("div");
     name.className = "inquiry-card-name";
     name.textContent = "🛒 " + (s.name || "구매자");
+    head.appendChild(avatar);
+    head.appendChild(name);
     const preview = document.createElement("p");
     preview.className = "inquiry-card-preview";
     preview.textContent = s.inquiry_preview || "이거 아직 판매 중인가요?";
@@ -246,7 +263,7 @@
       const sp = SafeDealSpawns.list().filter((x) => x.inquiry_id === id)[0];
       if (sp && global.SafeDealChat && SafeDealChat.openCard) SafeDealChat.openCard(sp);
     });
-    card.appendChild(name);
+    card.appendChild(head);
     card.appendChild(preview);
     card.appendChild(bar);
     card.appendChild(btn);

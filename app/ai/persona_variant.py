@@ -228,4 +228,14 @@ def apply_variant_to_npc(npc: dict, variant: dict) -> dict:
     out["persona"] = persona
     if variant.get("display_name") and _is_safe_text(str(variant["display_name"])):
         out["name"] = str(variant["display_name"])
+    # 초상 매칭용 gender_presentation: 제공자(local_claude 등)가 유효값을 주면 반영,
+    # 아니면 생성 시 정해둔 값을 그대로 유지한다(정답/신원 노출 아님 — 얼굴 외형용).
+    if variant.get("gender_presentation") is not None:
+        from app.portraits import normalize_gender_presentation
+        g = normalize_gender_presentation(
+            variant.get("gender_presentation"),
+            text_hint=str(variant.get("personality", "")) + " " + str(variant.get("backstory", "")),
+        )
+        if g in ("feminine", "masculine", "neutral"):  # unknown 이면 기존값 유지
+            out["gender_presentation"] = g
     return out

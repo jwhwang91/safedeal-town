@@ -57,6 +57,31 @@ _CONTENT_SAFETY = """
 
 
 # ============================================================
+#  말투 디테일 (MBTI 성향 + 성별 말버릇) — 연출용, 정답 무관
+# ============================================================
+def _voice_block(persona: dict) -> str:
+    """이 인물의 '채팅 말투 습관'을 지시한다. role 과 독립적으로 정해진 연출 신호다.
+
+    (사기꾼도 정상도 어떤 MBTI 든 될 수 있으므로, 이 말투로 정체가 새지 않는다.)
+    """
+    style = str(persona.get("mbti_style") or "").strip()
+    voice = str(persona.get("voice_style") or "").strip()
+    if not (style or voice):
+        return ""
+    lines = ["", "[말투 디테일 - 이 인물의 채팅 습관대로 자연스럽게 배어나오게]"]
+    if style:
+        mbti = str(persona.get("mbti") or "").strip()
+        tag = f"(MBTI {mbti}) " if mbti else ""
+        lines.append(f"- 성향 {tag}: {style}")
+    if voice:
+        lines.append(f"- 말버릇: {voice}")
+    lines.append(
+        "- 이 성향은 '어떻게 말하느냐'만 정한다. 정체/역할과는 무관하니 억지로 티내지 말고 은근히 드러내라."
+    )
+    return "\n".join(lines) + "\n"
+
+
+# ============================================================
 #  판매자 에이전트 (사기꾼 / 정상 공용) — 구매자 모드
 # ============================================================
 def build_seller_system_prompt(npc: dict) -> str:
@@ -79,6 +104,7 @@ def build_seller_system_prompt(npc: dict) -> str:
 3. 설명조로 길게 늘어놓지 마라. 사람은 그렇게 안 친다.
 4. 상대(구매자)가 한 말에 실제로 반응해라. 질문을 무시하고 네 할 말만 하지 마라.
 """
+    base += _voice_block(p)
 
     # 동적 매물 상세(상태/하자/구성품)가 있으면 판매자가 자기 물건을 더 구체적으로 말하게 한다.
     listing = npc.get("listing") if isinstance(npc.get("listing"), dict) else None
@@ -319,6 +345,7 @@ def build_buyer_system_prompt(npc: dict, seller_category: str | None,
 2. 진짜 카톡/중고앱 채팅처럼 말해라. 보통 1~3문장, 짧고 자연스럽게. 가끔 'ㅎㅎ','ㅠ' 정도는 괜찮다.
 3. 상대(판매자)가 한 말에 실제로 반응해라. 네 할 말만 일방적으로 하지 마라.
 """
+    base += _voice_block(p)
 
     if npc["role"] == "honest_buyer":
         signals = "\n".join(f"  - {s}" for s in HONEST_BUYER_SIGNALS)

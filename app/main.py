@@ -13,7 +13,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -51,10 +51,20 @@ app = FastAPI(title="SafeDeal Town", version="1.0.0", lifespan=lifespan)
 #    StaticFiles 가 주는 ETag 가 바뀌어 브라우저가 새 파일을 받는다.
 #    (index.html 의 ?v= 와 더불어 이중 안전장치)
 # ------------------------------------------------------------
+# 초상(얼굴) 에셋과 매니페스트는 '정답지'(폴더명=family, 매니페스트=숨은 role 태그)를
+# 품고 있으므로 /static 으로 직접 서빙하면 안 된다. 얼굴은 오직 불투명 엔드포인트
+# /api/chat/portrait/{spawn_id} 로만 나간다(FileResponse=디스크 직접 스트림, 마운트 우회).
+# → /static/portraits/** 와 /static/assets/portraits/** 는 HTTP 로 전부 404 처리한다.
+_BLOCKED_STATIC_PREFIXES = ("/static/portraits/", "/static/assets/portraits/")
+
+
 @app.middleware("http")
 async def _no_stale_static(request: Request, call_next):
-    response = await call_next(request)
     path = request.url.path
+    # 정답 누출 방지: 초상 에셋/매니페스트 직접 접근은 (인증 없이도) 무조건 404.
+    if path.startswith(_BLOCKED_STATIC_PREFIXES):
+        return Response(status_code=404)
+    response = await call_next(request)
     if path.startswith("/static/") and path.endswith((".js", ".css")):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response

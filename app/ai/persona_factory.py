@@ -21,17 +21,14 @@ from __future__ import annotations
 
 import random
 
+from app.ai import persona_identity as identity
 from app.market import catalog
 
 # ============================================================
 #  이름/외모/성격 재료
 # ============================================================
-_GIVEN_NAMES = [
-    "민수", "지현", "도윤", "서연", "준호", "예린", "현우", "수빈", "지훈", "하은",
-    "태경", "보라", "성민", "유진", "재희", "민서", "다온", "시우", "윤아", "정우",
-    "가람", "한결", "소율", "지안", "도경", "나래", "예준", "채원", "건우", "수아",
-]
-
+# given name 은 이제 '얼굴 성별표현에 맞춰' app.ai.persona_identity.pick_name() 이 고른다
+# (남자 얼굴에 여자 이름 같은 불일치 방지). 여기엔 판매자 이름 앞에 붙는 수식어만 남긴다.
 _SELLER_NAME_PREFIX = {
     "honest_seller": ["솔직한", "정직한", "이사정리", "동네", "착한가격"],
     "rude_but_honest_seller": ["무뚝뚝", "퉁명", "쿨거래", "직설"],
@@ -75,6 +72,10 @@ _SPRITE_COLORS = [
     "#e8833a", "#2fa6a0", "#5566b5", "#6aa84f", "#9b6a3c", "#c0567a",
     "#5b8def", "#d36ea0", "#e0a93c", "#7d5ba6", "#4f9d8a", "#c98a5a",
 ]
+
+# 초상(얼굴) 매칭용 '가상 프로필 외형' 성별표현. '생물학적 성별'이 아니라 얼굴 다양성/매칭용.
+# role/정답과 무관하게 생성 시 1회 정해 dynamic_json 에 저장한다(그 뒤엔 안 흔들림).
+_GENDER_PRESENTATIONS = ("feminine", "masculine")
 
 # 구매자 NPC 머리 위 말풍선(중립적 — 유형 노출 금지)
 _BUYER_TAGLINES = [
@@ -289,10 +290,14 @@ def generate_seller_npc_for_buyer_mode(
     user_preferences: dict | None = None,
     listing_seed=None,
     rng: random.Random | None = None,
+    spawn_seed: str | None = None,
 ) -> dict:
     """
     앵커(기본 판매자 NPC)의 role/tactics/difficulty 를 유지하면서,
     카탈로그 매물 + 새 페르소나 + 매물 언급 mock 대사를 입혀 동적 판매자 NPC 를 만든다.
+
+    spawn_seed(스폰 id)가 있으면 '얼굴을 먼저 고르고' 그 얼굴에 맞춰 겉모습/성별/이름을
+    정한다(초상-우선). 없으면 기존처럼 일반 외형으로 폴백한다.
     """
     rng = rng or random.Random()
     prefs = user_preferences or {}
@@ -305,12 +310,26 @@ def generate_seller_npc_for_buyer_mode(
     seed_hint = listing_seed.to_hint() if listing_seed is not None else None
     listing = catalog.generate_listing(category, scenario_type=scenario, seed_hint=seed_hint)
 
-    # 아키타입 선택 → 성격/말투/이름
+    # 아키타입 선택 → 성격/말투
     archetypes = _SELLER_ARCHETYPES.get(role, _SELLER_ARCHETYPES["honest"])
     role_type, personality, speech = rng.choice(archetypes)
+
+    # 얼굴(초상)을 먼저 고르고, 그 얼굴에 이름/겉모습/성별을 맞춘다(불일치 원천 제거).
+    prelim_gender = rng.choice(_GENDER_PRESENTATIONS)
+    ident = identity.resolve_identity(
+        role, tactics, prelim_gender, listing.get("canonical_category"), spawn_seed
+    )
+    if ident:
+        gender, appearance = ident["gender"], ident["appearance"]
+        portrait_asset_id = ident["asset_id"]
+    else:  # 매니페스트 폴백: 얼굴을 못 고르면 일반 외형(성별 일치 이름만은 유지)
+        gender, appearance, portrait_asset_id = prelim_gender, rng.choice(_APPEARANCE), None
+
     prefix = rng.choice(_SELLER_NAME_PREFIX.get(role_type, ["동네"]))
-    name = f"{prefix} {rng.choice(_GIVEN_NAMES)}"
-    appearance = rng.choice(_APPEARANCE)
+    name = f"{prefix} {identity.pick_name(gender, rng)}"
+    # MBTI/성별 말투 — role 과 무관하게 정해 대화 말투에 다양성을 준다(정답 비노출).
+    mbti, mbti_style = identity.pick_mbti(rng)
+    voice = identity.voice_style(gender, mbti)
     item = listing["item_name"]
     cond = listing["condition_label"]
 
@@ -334,11 +353,15 @@ def generate_seller_npc_for_buyer_mode(
         "speech_style": speech,
         "backstory": f"{listing['region_label']}에서 {item} 을(를) 정리하는 중.",
         "opening_line": opening,
+        # 말투 다양성(role 무관): MBTI 성향 + 성별 말버릇. 프롬프트가 대화 말투에 반영한다.
+        "mbti": mbti,
+        "mbti_style": mbti_style,
+        "voice_style": voice,
         note_key: note_val,
     }
     mock_lines = build_mock_lines_for_listing(persona, listing, role, tactics)
 
-    return {
+    npc = {
         "id": anchor["id"],            # FK 앵커 (npcs 테이블)
         "anchor_id": anchor["id"],
         "dynamic": True,
@@ -351,6 +374,7 @@ def generate_seller_npc_for_buyer_mode(
         "role": role,
         "role_type": role_type,
         "difficulty": difficulty,
+        "gender_presentation": gender,  # 초상 매칭용(서버 전용; 공개 payload 미포함)
         "persona": persona,
         "tactics": tactics,
         "sprite_color": rng.choice(_SPRITE_COLORS),
@@ -361,6 +385,11 @@ def generate_seller_npc_for_buyer_mode(
         "tagline": listing["listing_title"],
         "listing": listing,            # 전체 매물(서버 전용; 카드로 공개 필드만 노출)
     }
+    # 이 스폰에 고정된 얼굴(서버 전용; dynamic_json 안에만 있고 공개 payload 엔 안 나감).
+    # 서빙 때 재-리졸브 없이 이 asset 을 그대로 돌려줘 얼굴/설명이 절대 어긋나지 않게 한다.
+    if portrait_asset_id:
+        npc["portrait_asset_id"] = portrait_asset_id
+    return npc
 
 
 # ============================================================
@@ -370,20 +399,41 @@ def generate_buyer_npc_for_seller_mode(
     anchor: dict,
     user_listing: dict | None = None,
     rng: random.Random | None = None,
+    spawn_seed: str | None = None,
 ) -> dict:
     """
     앵커(기본 구매자 NPC)의 role/tactics/mock_lines 를 유지하면서,
     이름/외모/오프닝을 새로 입히고 '플레이어가 올린 실제 물건'을 언급하게 한다.
+
+    spawn_seed(스폰 id)가 있으면 얼굴을 먼저 고르고 겉모습/성별/이름을 맞춘다(초상-우선).
     """
     rng = rng or random.Random()
     role = anchor.get("role", "honest_buyer")
+    tactics = list(anchor.get("tactics", []))
     item = (user_listing or {}).get("item_name") or "올리신 매물"
-    name = rng.choice(_GIVEN_NAMES)
-    appearance = rng.choice(_APPEARANCE)
+
+    # 얼굴을 먼저 고르고, 그 얼굴에 이름/겉모습/성별을 맞춘다(불일치 원천 제거).
+    prelim_gender = rng.choice(_GENDER_PRESENTATIONS)
+    ident = identity.resolve_identity(
+        role, tactics, prelim_gender, anchor.get("category"), spawn_seed
+    )
+    if ident:
+        gender, appearance = ident["gender"], ident["appearance"]
+        portrait_asset_id = ident["asset_id"]
+    else:
+        gender, appearance, portrait_asset_id = prelim_gender, rng.choice(_APPEARANCE), None
+
+    name = identity.pick_name(gender, rng)
+    mbti, mbti_style = identity.pick_mbti(rng)
+    voice = identity.voice_style(gender, mbti)
 
     base_persona = dict(anchor.get("persona", {}))
     base_persona["appearance"] = appearance
     base_persona["opening_line"] = _BUYER_OPENINGS.get(role, "{item} 문의드려요!").format(item=item)
+    # 말투 다양성(role 무관): MBTI 성향 + 성별 말버릇.
+    base_persona["mbti"] = mbti
+    base_persona["mbti_style"] = mbti_style
+    base_persona["voice_style"] = voice
 
     npc = dict(anchor)  # role/tactics/difficulty 유지
     npc.update({
@@ -391,6 +441,7 @@ def generate_buyer_npc_for_seller_mode(
         "anchor_id": anchor["id"],
         "dynamic": True,
         "name": name,
+        "gender_presentation": gender,  # 초상 매칭용(서버 전용; 공개 payload 미포함)
         "persona": base_persona,
         "npc_kind": "buyer",
         # 외형 색/말풍선은 역할과 무관하게 (정체 추리가 깨지지 않도록).
@@ -401,6 +452,9 @@ def generate_buyer_npc_for_seller_mode(
         # 판매자 모드에선 다뤄지는 물건이 '플레이어의 매물'이다. 표시는 라벨로.
         "item_name": "내 매물 문의",
     })
+    # 이 스폰에 고정된 얼굴(서버 전용). 서빙 때 재-리졸브 없이 그대로 돌려준다.
+    if portrait_asset_id:
+        npc["portrait_asset_id"] = portrait_asset_id
     return npc
 
 

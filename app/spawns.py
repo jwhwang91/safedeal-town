@@ -148,6 +148,8 @@ def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime,
             "tagline": dyn.get("tagline") or dyn.get("item_name") or "",
             "listing_price": dyn.get("listing_price", 0),
             "sprite_color": dyn.get("sprite_color") or "#b0a080",
+            # 얼굴 이미지: 스폰 id 만 담은 불투명 URL (family/role/gender 비노출).
+            "portrait_url": f"/api/chat/portrait/{row['id']}",
             "x": row["x"],
             "y": row["y"],
             "remaining_seconds": remaining,
@@ -191,6 +193,8 @@ def _public_spawn(conn: sqlite3.Connection, row: sqlite3.Row, now: datetime,
         "tagline": tagline,
         "listing_price": npc["listing_price"],
         "sprite_color": npc["sprite_color"],
+        # 얼굴 이미지: 스폰 id 만 담은 불투명 URL (family/role/gender 비노출).
+        "portrait_url": f"/api/chat/portrait/{row['id']}",
         "x": row["x"],
         "y": row["y"],
         "remaining_seconds": remaining,
@@ -298,7 +302,8 @@ def _fill(conn: sqlite3.Connection, user: sqlite3.Row, profile: dict, now: datet
         lifetime = rnd.randint(_LIFETIME_MIN, _LIFETIME_MAX)
         sid = str(uuid.uuid4())
         # 동적 NPC(매물/페르소나/대사)를 만들어 저장한다. 실패하면 정적 NPC 로 폴백(NULL).
-        dynamic_json = _make_dynamic_json(npc_id, game_role, dyn_ctx, rnd)
+        # sid 를 씨앗으로 넘겨 '얼굴을 먼저 고르고' 겉모습/성별/이름을 맞춘다(초상-우선).
+        dynamic_json = _make_dynamic_json(npc_id, game_role, dyn_ctx, rnd, sid)
         conn.execute(
             "INSERT INTO active_spawns (id, user_id, npc_id, game_role, x, y, "
             "spawned_at, expires_at, status, dynamic_json) "
@@ -327,8 +332,11 @@ def _dynamic_context(conn, user, game_role, needed: int) -> dict:
     return {"prefs": prefs, "seeds": seeds}
 
 
-def _make_dynamic_json(npc_id, game_role, ctx, rnd) -> str | None:
-    """앵커(npc_id)에 매물/페르소나를 입혀 동적 NPC JSON 을 만든다. 실패 시 None."""
+def _make_dynamic_json(npc_id, game_role, ctx, rnd, spawn_seed=None) -> str | None:
+    """앵커(npc_id)에 매물/페르소나를 입혀 동적 NPC JSON 을 만든다. 실패 시 None.
+
+    spawn_seed(스폰 id)는 '얼굴을 먼저 고르는' 초상-우선 생성에 쓰인다(서빙 때와 같은 시드).
+    """
     if ctx is None:
         return None
     try:
@@ -340,13 +348,13 @@ def _make_dynamic_json(npc_id, game_role, ctx, rnd) -> str | None:
             return None
         if game_role == "seller":
             dyn = persona_factory.generate_buyer_npc_for_seller_mode(
-                anchor, ctx["prefs"].get("seller_listing"), rng=rnd
+                anchor, ctx["prefs"].get("seller_listing"), rng=rnd, spawn_seed=spawn_seed
             )
         else:
             seeds = ctx.get("seeds") or []
             seed = seeds.pop() if seeds else None
             dyn = persona_factory.generate_seller_npc_for_buyer_mode(
-                anchor, ctx["prefs"], listing_seed=seed, rng=rnd
+                anchor, ctx["prefs"], listing_seed=seed, rng=rnd, spawn_seed=spawn_seed
             )
         return json.dumps(dyn, ensure_ascii=False)
     except Exception:

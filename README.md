@@ -414,6 +414,82 @@ NPC 의 정체(role)·수법(tactics)은 절대 프론트로 내려가지 않습
 
 ---
 
+## 🖼️ NPC 초상(얼굴) 시스템 — 스포일러 없는 설계
+
+각 AI NPC 는 페르소나에 어울리는 **가상 애니풍 프로필 얼굴**을 갖습니다.
+핵심 원칙: **얼굴만 보고 정답(정상/사기·위험 유형)을 맞힐 수 없어야 한다.**
+플레이어는 대화 내용·요구 행동·거래 방식·이야기 일관성·증거로 판단해야 합니다.
+
+**동작 방식**
+
+1. **매니페스트 우선** — `static/portraits/portraits_manifest.json`
+   각 이미지에 *공개 아키타입*(비-스포일러) + `gender_presentation` +
+   (백엔드 전용) 숨은 eligible family 태그가 붙어 있습니다.
+   `scripts/build_portrait_public_assets.py` 가 폴더 트리에서 생성합니다.
+2. **폴더 스캔 폴백** — 매니페스트가 없으면 `static/portraits/<family>/<gender>/` 직접 스캔.
+3. **절차적 폴백** — 이미지가 하나도 없으면 프론트가 색상 원(스프라이트)으로 표시.
+   → 에셋이 0개여도 게임은 그대로 돌아갑니다.
+
+**스포일러 방지(anti-spoiler)의 핵심**
+
+- **불투명(opaque) URL 로만 서빙**: 프론트는 `/api/chat/portrait/{spawn_id}` 만 봅니다.
+  실제 폴더명(romance/refund_villain…)·파일명·아키타입·성별·role/tactics 는
+  URL/헤더/`Content-Disposition` 어디에도 실리지 않습니다.
+- **공개 아키타입으로 뭉갠다**: 폴더(정답 힌트)를 `warm_social / professional /
+  ordinary / hobby / assertive / neutral` 같은 **정답과 무관한 공개 아키타입**으로 매핑합니다.
+- **정상·위험이 같은 풀을 공유**: 하나의 아키타입은 정상 페르소나와 위험 페르소나가
+  **함께** 씁니다. 따뜻한 얼굴 = 로맨스 사기, 프로페셔널한 얼굴 = 보이스피싱이
+  **아니게** 만듭니다. (검증: 현재 에셋 기준 *정상만/위험만* 쓰는 얼굴은 0개.)
+- **숨은 family 는 약한 tie-breaker**: `eligible_persona_families_internal` 은 백엔드
+  전용 약한 가점일 뿐, 얼굴을 좌우하는 지배 신호가 아닙니다. 프론트로 절대 안 나갑니다.
+- **가중 top-N + 안정 해시**: 항상 '가장 전형적인' 얼굴을 고르지 않고, 후보 풀을
+  가중치로 펼쳐 스폰 id 해시로 고릅니다 → **같은 스폰은 항상 같은 얼굴**, 서로 다른
+  NPC 는 (정상/위험 무관) 같은 아키타입 풀에서 겹칩니다.
+- **gender_presentation** 은 '가상 프로필 외형' 매칭용이며 실제 신원 추론이 아닙니다.
+  허용값 `feminine|masculine|neutral|unknown`. local_claude 페르소나가 값을 주면
+  검증 후 쓰고, 없거나 잘못됐으면 텍스트에서 명백할 때만 추론, 아니면 `unknown`.
+
+**초상-우선 정체성(portrait-first) — 얼굴과 설명이 어긋나지 않게**
+
+- 예전엔 이름·겉모습·성별을 각각 랜덤으로 정해 얼굴과 따로 놀았습니다(남자 이름에 여자
+  얼굴, "후드 안경 20대"인데 정장 여성 얼굴 등). 이제 **얼굴이 진실**입니다:
+  스폰마다 얼굴을 **먼저** 고르고(스폰 id 시드), 그 얼굴에 겉모습/성별/이름을 맞춥니다.
+- **중립 외형 속성 태깅**: 88장 초상을 실제로 보고 `age_band/attire/accessories/hair` 로
+  태깅한 사이드카 `static/portraits/portrait_attributes.json` 를 매니페스트에 병합합니다
+  (폴더 리빌드에도 살아남게 분리). 겉모습 설명은 이 속성에서 파생됩니다
+  (예: "안경 쓴 후드티 차림의 20대 남성"). 나이/옷차림/액세서리는 **정답과 무관한 중립
+  정보**뿐이라 얼굴로 정답이 새지 않습니다.
+- **얼굴 고정(pin)**: 생성 시 고른 `portrait_asset_id` 를 dynamic_json 에 박아두고, 서빙 때
+  `path_for_asset_id` 로 **그 얼굴을 그대로** 돌려줍니다 → 설명↔이미지가 100% 일치.
+- **성별 일치 이름**: `app/ai/persona_identity.pick_name()` 이 얼굴 성별표현에 맞는 이름만
+  고릅니다(남/여/유니섹스 풀 분리).
+- **MBTI(16유형) + 성별 말버릇**: role 과 **무관하게** 정해 대화 *말투*에만 다양성을 줍니다
+  (사기꾼도 정상도 어떤 MBTI 든 가능 → 말투로 정답이 새지 않음). `persona.mbti/mbti_style/
+  voice_style` 에 저장되어 역할극 프롬프트(`prompts._voice_block`)에 반영됩니다.
+
+같은 초상은 **listing 카드 · 채팅 헤더 · 문의 카드 · 결과 모달**에서 동일하게 쓰입니다.
+
+**에셋 추가 방법**
+
+```bash
+# 1) static/portraits/<family>/<gender>/ 에 이미지(jpg/png/webp)를 넣는다
+# 2) (권장) 새 얼굴의 중립 외형 속성(age_band/attire/accessories/hair)을
+#    static/portraits/portrait_attributes.json 에 <family>/<gender>/<file> 키로 추가한다.
+#    (없어도 매니페스트는 생성되지만, 그 얼굴은 겉모습 설명이 일반값으로 폴백된다.)
+# 3) 매니페스트 재생성 (이미지 이동 없음 · 속성 사이드카 자동 병합)
+python scripts/build_portrait_public_assets.py
+# (선택) 완전 불투명 파일명 static/assets/portraits/public/p_XXXX 로 복사본까지:
+python scripts/build_portrait_public_assets.py --public-copies
+```
+
+코드 수정 없이 매니페스트만 다시 생성하면 새 얼굴이 반영됩니다. 속성 사이드카까지
+채우면 그 얼굴의 겉모습 설명이 실제 이미지와 자동으로 맞춰집니다.
+
+**안전**: 실제 인물·유명인·미성년자 로맨스·성적 이미지·외부 이미지 스크래핑 금지.
+에셋은 전부 가상 프로필 얼굴이어야 합니다.
+
+---
+
 ## 외부 접속
 
 `.env` 의 `HOST=0.0.0.0` 이면 같은 와이파이의 다른 기기에서 `http://<내 PC IP>:8000` 으로 접속 가능합니다.

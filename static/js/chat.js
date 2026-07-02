@@ -594,6 +594,15 @@
     document.getElementById("result-emoji").textContent = meta.emoji;
     document.getElementById("result-title").textContent = meta.title;
 
+    // 결과 배너에도 같은 NPC 얼굴(불투명 URL)을 보여준다 — 채팅 헤더/카드와 동일 이미지.
+    const npcPortrait = session && session.npc ? session.npc.portrait_url : null;
+    const resultAvatar = document.getElementById("result-avatar");
+    setNpcAvatar(resultAvatar, npcPortrait,
+                 session && session.npc ? session.npc.sprite_color : null);
+    // 배너에서는 색 원 폴백을 쓰지 않는다: 배경을 투명으로 비워 로딩/404 시 색 원 깜빡임 방지.
+    // (얼굴이 있으면 img 가 덮고, 없거나 로드 실패하면 :empty 로 숨겨진다.)
+    if (resultAvatar) resultAvatar.style.background = "transparent";
+
     let roleText;
     if (seller) {
       roleText = "이 구매자는 '" + (r.counterparty_label || "구매자") + "' 였습니다.";

@@ -278,9 +278,16 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
   animation: card-pop .25s ease-out;
 }
 @keyframes card-pop { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+.inquiry-card-head { display: flex; align-items: center; gap: .45rem; }
+.inquiry-card-avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--ink); background: var(--terracotta); overflow: hidden;
+}
+/* 문의 카드 얼굴은 확대 클릭 핸들러가 없으므로 zoom-in 커서(오해 소지)를 끈다 */
+.inquiry-card-avatar .npc-portrait { cursor: default; }
 .inquiry-card-name {
   font-family: 'Jua', sans-serif; font-size: .85rem; color: var(--terracotta-dark);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
 }
 .inquiry-card-preview {
   font-size: .78rem; color: var(--ink); margin: .25rem 0 .4rem;
@@ -665,6 +672,12 @@ h1, h2, h3, h4, .display { font-family: 'Jua', sans-serif; font-weight: 400; }
 }
 .result-banner.bad { background: var(--danger); }
 .result-banner.ok  { background: var(--gold); }
+.result-avatar {
+  width: 68px; height: 68px; border-radius: 50%; margin: 0 auto .5rem;
+  border: 3px solid rgba(255,255,255,.85); background: var(--terracotta);
+  overflow: hidden; box-shadow: 0 4px 0 rgba(58,50,38,.25);
+}
+.result-avatar:empty { display: none; }
 .result-emoji { font-size: 2.6rem; }
 .result-banner h2 { font-size: 1.6rem; margin-top: .2rem; }
 .result-banner p { font-size: .9rem; opacity: .95; }

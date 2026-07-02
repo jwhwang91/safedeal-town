@@ -310,12 +310,14 @@ def _portrait_url(spawn_instance_id: str | None) -> str | None:
 
 def _resolve_role_for_portrait(
     conn: sqlite3.Connection, spawn_instance_id: str,
-) -> tuple[str | None, list] | None:
-    """스폰 id → (role, tactics). 공개 초상 엔드포인트 전용(인증 없음). 못 찾으면 None.
+) -> tuple[str | None, list, str | None, str | None, str | None] | None:
+    """스폰 id → (role, tactics, gender_presentation, category, portrait_asset_id). 공개 엔드포인트 전용.
 
     /card·/start 의 스폰→NPC 해석 로직을 재사용한다: 동적 NPC(dynamic_json)가 있으면
     그 정답지를, 없으면 npcs 테이블의 role/tactics 를 쓴다. 진행 중 거래로 스폰이
     이미 engaged/만료됐을 수 있어 trade_sessions 로도 폴백 조회한다.
+    portrait_asset_id 가 있으면(생성 시 고정한 얼굴) 그 얼굴을 그대로 서빙한다 → 겉모습 설명과
+    100% 일치. gender_presentation/category 는 asset 이 없을 때의 매칭 힌트일 뿐(정답 아님).
     """
     npc_id = None
     dynamic_json = None
@@ -341,20 +343,27 @@ def _resolve_role_for_portrait(
         try:
             data = json.loads(dynamic_json)
             if isinstance(data, dict):
-                return data.get("role"), (data.get("tactics") or [])
+                return (
+                    data.get("role"),
+                    (data.get("tactics") or []),
+                    data.get("gender_presentation"),
+                    data.get("category") or data.get("item_category"),
+                    data.get("portrait_asset_id"),
+                )
         except (json.JSONDecodeError, TypeError):
             pass
 
-    if npc_id:  # 정적 NPC 폴백
+    if npc_id:  # 정적 NPC 폴백 (gender/asset 정보 없음 → 초상 리졸버가 seed 로 결정)
         nrow = conn.execute(
-            "SELECT role, tactics_json FROM npcs WHERE id = ?", (npc_id,)
+            "SELECT role, tactics_json, category FROM npcs WHERE id = ?", (npc_id,)
         ).fetchone()
         if nrow:
             try:
                 tactics = json.loads(nrow["tactics_json"]) if nrow["tactics_json"] else []
             except (json.JSONDecodeError, TypeError):
                 tactics = []
-            return nrow["role"], tactics
+            # category 는 schema.sql + 시작 시 마이그레이션으로 항상 존재한다.
+            return nrow["role"], tactics, None, nrow["category"], None
     return None
 
 
@@ -373,8 +382,12 @@ def npc_portrait(
     resolved = _resolve_role_for_portrait(conn, spawn_instance_id)
     if not resolved:
         raise HTTPException(status_code=404, detail="Not found")
-    role, tactics = resolved
-    path = portrait_mgr.resolve_portrait_path(role, tactics, spawn_instance_id)
+    role, tactics, gender_presentation, category, portrait_asset_id = resolved
+    # 생성 시 고정한 얼굴이 있으면 그대로 서빙(겉모습 설명과 100% 일치). 없으면 seed 로 리졸브.
+    path = portrait_mgr.path_for_asset_id(portrait_asset_id) or portrait_mgr.resolve_portrait_path(
+        role, tactics, spawn_instance_id,
+        gender_presentation=gender_presentation, category=category,
+    )
     if not path or not path.is_file():
         raise HTTPException(status_code=404, detail="Not found")
     # 확장자로 미디어 타입 추론(웹 최적화로 jpg/webp 로 서빙될 수 있음). filename 은 여전히 미지정.

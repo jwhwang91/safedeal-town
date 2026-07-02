@@ -1,0 +1,616 @@
+{
+  "default/feminine/08_kind_woman.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "니트",
+    "hair": "묶은머리"
+  },
+  "default/feminine/default_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "단발"
+  },
+  "default/feminine/default_02.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "단발"
+  },
+  "default/feminine/default_03.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "묶은머리"
+  },
+  "default/feminine/default_04.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "단발"
+  },
+  "default/feminine/default_05.jpg": {
+    "accessories": [
+      "안경",
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "단발"
+  },
+  "default/feminine/default_06.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "묶은머리"
+  },
+  "default/masculine/default_man01.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "default/masculine/default_man02.jpg": {
+    "accessories": [],
+    "age_band": "10대",
+    "attire": "티셔츠",
+    "hair": "짧은머리"
+  },
+  "default/masculine/default_man03.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "default/masculine/default_man04.jpg": {
+    "accessories": [],
+    "age_band": "10대",
+    "attire": "티셔츠",
+    "hair": "짧은머리"
+  },
+  "default/masculine/default_man05.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "default/masculine/default_man06.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "default/masculine/default_man07.jpg": {
+    "accessories": [
+      "모자",
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "honest_seller/feminine/honest_seller_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "짧은머리"
+  },
+  "honest_seller/feminine/honest_seller_02.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "20대",
+    "attire": "셔츠",
+    "hair": "긴머리"
+  },
+  "honest_seller/feminine/honest_seller_03.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "50대 이상",
+    "attire": "니트",
+    "hair": "짧은머리"
+  },
+  "honest_seller/feminine/honest_seller_04.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "50대 이상",
+    "attire": "니트",
+    "hair": "짧은머리"
+  },
+  "honest_seller/masculine/honest_seller_man_01.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "honest_seller/masculine/honest_seller_man_02.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "honest_seller/masculine/honest_seller_man_03.jpg": {
+    "accessories": [],
+    "age_band": "40대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "honest_seller/masculine/honest_seller_man_04.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "50대 이상",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "normal_buyer/feminine/01_professional_asian_woman.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "30대",
+    "attire": "정장",
+    "hair": "단발"
+  },
+  "normal_buyer/feminine/normal_buyer_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "단발"
+  },
+  "normal_buyer/feminine/normal_buyer_02.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "단발"
+  },
+  "normal_buyer/feminine/normal_buyer_03.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "자켓",
+    "hair": "단발"
+  },
+  "normal_buyer/feminine/normal_buyer_04.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "단발"
+  },
+  "normal_buyer/masculine/11_plain_neighborhood_seller.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "normal_buyer/masculine/normal_buyer_man_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "normal_buyer/masculine/normal_buyer_man_02.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "normal_buyer/masculine/normal_buyer_man_03.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "normal_buyer/masculine/normal_buyer_man_04.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "10대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "otaku/feminine/16_otaku_hobbyist_woman.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "단발"
+  },
+  "otaku/feminine/17_cosplay_fan_woman.jpg": {
+    "accessories": [
+      "안경",
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "긴머리"
+  },
+  "otaku/feminine/18_manga_figure_collector_woman.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "단발"
+  },
+  "otaku/feminine/otaku_01.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "긴머리"
+  },
+  "otaku/feminine/otaku_02.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "티셔츠",
+    "hair": "긴머리"
+  },
+  "otaku/masculine/14_otaku_glasses_hoodie_man.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "otaku/masculine/otaku_man_01.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "otaku/masculine/otaku_man_02.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "private_contact/masculine/06_friendly_young_man.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "professional_seller/masculine/03_business_man.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "정장",
+    "hair": "짧은머리"
+  },
+  "refund_villain/feminine/refund_villain_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "긴머리"
+  },
+  "refund_villain/feminine/refund_villain_02.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "단발"
+  },
+  "refund_villain/feminine/refund_villain_03.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "30대",
+    "attire": "자켓",
+    "hair": "긴머리"
+  },
+  "refund_villain/feminine/refund_villain_04.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "긴머리"
+  },
+  "refund_villain/masculine/refund_villain_man_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "refund_villain/masculine/refund_villain_man_02.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "refund_villain/masculine/refund_villain_man_03.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "refund_villain/masculine/refund_villain_man_04.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "romance/feminine/04_warm_smile_woman.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "긴머리"
+  },
+  "romance/feminine/07_confident_woman.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "30대",
+    "attire": "자켓",
+    "hair": "긴머리"
+  },
+  "romance/feminine/romance_01.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "긴머리"
+  },
+  "romance/feminine/romance_02.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "긴머리"
+  },
+  "romance/feminine/romance_03.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "단발"
+  },
+  "romance/feminine/romance_04.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "긴머리"
+  },
+  "romance/feminine/romance_05.jpg": {
+    "accessories": [
+      "안경",
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "단발"
+  },
+  "romance/feminine/romance_06.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "니트",
+    "hair": "단발"
+  },
+  "romance/masculine/10_bright_friendly_character.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "10대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "romance/masculine/romance_man_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "셔츠",
+    "hair": "짧은머리"
+  },
+  "romance/masculine/romance_man_02.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "셔츠",
+    "hair": "짧은머리"
+  },
+  "romance/masculine/romance_man_03.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "정장",
+    "hair": "짧은머리"
+  },
+  "romance/masculine/romance_man_04.jpg": {
+    "accessories": [],
+    "age_band": "10대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "romance/masculine/romance_man_05.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "rude_honest/feminine/rude_honest_01.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "묶은머리"
+  },
+  "rude_honest/feminine/rude_honest_02.jpg": {
+    "accessories": [],
+    "age_band": "50대 이상",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "rude_honest/masculine/09_casual_stubbled_man.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "rude_honest/masculine/rude_honest_man_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "rude_honest/masculine/rude_honest_man_02.jpg": {
+    "accessories": [],
+    "age_band": "40대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "suspicious_buyer/feminine/suspicious_buyer_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "단발"
+  },
+  "suspicious_buyer/masculine/02_anxious_young_man.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "suspicious_buyer/masculine/suspicious_buyer_man_01.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "suspicious_buyer/masculine/suspicious_buyer_man_02.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "suspicious_buyer/masculine/suspicious_buyer_man_03.jpg": {
+    "accessories": [
+      "모자"
+    ],
+    "age_band": "20대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "used_tech/feminine/Used_tech_01.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "자켓",
+    "hair": "묶은머리"
+  },
+  "used_tech/masculine/15_scruffy_used_tech_seller.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "후드티",
+    "hair": "짧은머리"
+  },
+  "used_tech/masculine/used_teck_man_01.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "40대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "used_tech/masculine/used_teck_man_02.jpg": {
+    "accessories": [],
+    "age_band": "40대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "used_tech/masculine/used_teck_man_03.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "40대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "voice_pressure/feminine/voice_pressure_01.jpg": {
+    "accessories": [
+      "이어폰"
+    ],
+    "age_band": "20대",
+    "attire": "정장",
+    "hair": "묶은머리"
+  },
+  "voice_pressure/feminine/voice_pressure_02.jpg": {
+    "accessories": [
+      "귀걸이"
+    ],
+    "age_band": "20대",
+    "attire": "정장",
+    "hair": "긴머리"
+  },
+  "voice_pressure/feminine/voice_pressure_03.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "셔츠",
+    "hair": "단발"
+  },
+  "voice_pressure/feminine/voice_pressure_04.jpg": {
+    "accessories": [
+      "이어폰"
+    ],
+    "age_band": "20대",
+    "attire": "정장",
+    "hair": "단발"
+  },
+  "voice_pressure/masculine/05_stern_man.jpg": {
+    "accessories": [],
+    "age_band": "30대",
+    "attire": "자켓",
+    "hair": "짧은머리"
+  },
+  "voice_pressure/masculine/voice_pressure_man_01.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "30대",
+    "attire": "정장",
+    "hair": "짧은머리"
+  },
+  "voice_pressure/masculine/voice_pressure_man_02.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "정장",
+    "hair": "짧은머리"
+  },
+  "voice_pressure/masculine/voice_pressure_man_03.jpg": {
+    "accessories": [],
+    "age_band": "20대",
+    "attire": "셔츠",
+    "hair": "짧은머리"
+  },
+  "voice_pressure/masculine/voice_pressure_man_04.jpg": {
+    "accessories": [
+      "안경"
+    ],
+    "age_band": "30대",
+    "attire": "셔츠",
+    "hair": "짧은머리"
+  }
+}
