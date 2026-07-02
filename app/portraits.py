@@ -30,6 +30,9 @@ _ROOT = Path(__file__).resolve().parent.parent / "static" / "portraits"
 _GENDERS = ("masculine", "feminine")
 _DEFAULT_FAMILY = "default"
 
+# 지원 이미지 확장자(포맷 무관). 초상은 웹 최적화를 위해 jpg 로 내려갈 수 있다.
+_IMAGE_EXTS = (".webp", ".jpg", ".jpeg", ".png")
+
 # 정상 판매자용 후보 폴더(다양성). seed 로 결정적으로 고른다. 기본은 honest_seller.
 _HONEST_SELLER_FAMILIES = [
     "honest_seller", "professional_seller", "used_tech", "otaku", "rude_honest",
@@ -57,7 +60,7 @@ def _listing() -> dict[str, dict[str, list[str]]]:
                         continue
                     files = sorted(
                         p.name for p in gdir.iterdir()
-                        if p.is_file() and p.suffix.lower() == ".png"
+                        if p.is_file() and p.suffix.lower() in _IMAGE_EXTS
                     )
                     if files:  # 빈 성별 폴더는 담지 않는다(폴백이 자연스럽게 걸리도록)
                         gmap[g] = files

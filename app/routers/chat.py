@@ -377,7 +377,13 @@ def npc_portrait(
     path = portrait_mgr.resolve_portrait_path(role, tactics, spawn_instance_id)
     if not path or not path.is_file():
         raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(path, media_type="image/png")
+    # 확장자로 미디어 타입 추론(웹 최적화로 jpg/webp 로 서빙될 수 있음). filename 은 여전히 미지정.
+    _suffix = path.suffix.lower()
+    _media = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".webp": "image/webp", ".png": "image/png",
+    }.get(_suffix, "image/png")
+    return FileResponse(path, media_type=_media)
 
 
 # ---------------------------------------------------------------
