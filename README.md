@@ -236,6 +236,102 @@ priority = clamp((1 − mastery) + 0.15(최근 놓침) − 0.15(너무 최근 �
 
 ---
 
+## 🛡️ 사기 방어 훈련·진단 플랫폼 (Business Demo Layer)
+
+게임 위에 얹히는 **"AI 기반 개인맞춤형 디지털 사기 방어 훈련·진단 플랫폼"** 레이어입니다.
+사업계획 관점의 6가지를 증명하기 위한 데모 기능입니다:
+
+1. 현실적인 AI 사기 방어 시나리오로 **훈련**한다.
+2. 개인의 **약점(위험 차원)** 을 측정한다.
+3. **전/후 개선도**를 보여준다.
+4. 사용자가 올린 **실제 사례를 비식별·라벨링**해 훈련 시나리오로 만든다.
+5. 학교·시니어센터·지자체·금융사가 쓸 **집계 리포트/대시보드**를 제공한다.
+6. DB 구조는 향후 **B2B/B2G 확장**에 대비해 서버 이식형으로 설계한다.
+
+> 🔒 **핵심 원칙 — AI 는 "사기를 더 잘하는 법"을 절대 배우지 않습니다.** 실제 사례에서 *위험 신호만*
+> 추출·비식별·라벨링해 **방어 훈련 시나리오**로 바꿉니다. 실행 가능한 사기 절차·실제 개인정보·
+> 진짜 링크/계좌/전화번호는 생성하지 않습니다. 점수는 **훈련용 데모 지표**이며 의료·법률·공식 진단이 아닙니다.
+
+게임 화면 상단 HUD 의 **🛡️ 방어훈련** 버튼으로 허브를 열면 5개 탭이 있습니다:
+**취약도 진단 · 내 리포트 · 사례 공유 · 시나리오 뱅크 · 기관 데모**.
+
+### 🎬 Business Demo Flow (핵심 데모 흐름)
+
+1. **회원가입/로그인** → 마을 입장.
+2. **사전(baseline) 진단** — 🛡️ 방어훈련 → *취약도 진단* → "사전 진단 시작". 10개 상황 문항으로 위험 차원별 판단력 측정.
+3. **훈련(거래/미션 플레이)** — 구매자/판매자 모드로 거래하고, 돌발 미션(택배거래·안전결제·경계 지키기·환불 대응)을 수행.
+4. **내 리포트 확인** — *내 리포트* 탭. 방어 점수 + 위험 차원별 막대 + **"왜 이 점수인가"** 근거 + 강점/보완점 + 추천 다음 행동.
+5. **피해 사례 공유** — *사례 공유* 탭에서 사례 작성. 제출 즉시 **자동 비식별**(전화/이메일/URL/계좌/카톡ID 등 마스킹) 후 저장.
+6. **사례 → 방어 시나리오 변환** — 사례 상세에서 "🎬 방어 시나리오로 변환". 원문을 **복제하지 않고** 위험 패턴만 추출해 픽션화된 시나리오 후보 생성(기본 검토 대기).
+7. **시나리오 뱅크 검색/추천** — *시나리오 뱅크* 탭에서 키워드 검색 + "내 약점 추천"(약한 차원 기반 승인 시나리오 추천).
+8. **훈련 후(post-training) 진단 + 전/후 리포트** — 다시 진단 후, *내 리포트* 하단에서 **"외부 링크 감지율 40% → 80%"** 식 개선도 비교.
+9. **기관 대시보드 데모** — *기관 데모* 탭에서 데모 기관/코호트 생성 → 현재 계정을 코호트에 추가 → **집계 지표**(평균 사전/최근 점수·개선도·약한/강한 차원·미션 완료율·추천 커리큘럼) 확인.
+
+### 위험 차원(risk dimension) 15종 — 채점의 의미 계약
+
+`app/analytics/risk_scoring.py` 가 진단·게임·미션·부정행위를 하나로 묶는 **레지스트리**입니다.
+각 진단 문항의 `risk_family` 는 이 차원 키 중 하나이고, 게임 taxonomy `pattern_family` 와 미션 키도
+이 차원으로 환산됩니다. 점수는 **0~100, 높을수록 방어 역량이 강함**입니다.
+
+시세 이상 감지 · 시간 압박 저항 · 외부 링크 유도 감지 · 선입금 거절 · 제3자 계좌 의심 · 안전한 택배거래 ·
+플랫폼 대화 유지 · 개인 연락 경계 · 통화·인증 압박 대응 · 감정 신뢰 조작 경계 · 부당 환불 요구 대응 ·
+판매자 부정행위 회피 · 증거 중심 대응 · 침착한 분쟁 대응 · 정당한 요구 인정.
+
+### 프라이버시 / 비식별 동작 (`app/privacy/`)
+
+- **저장 전 비식별이 원칙**입니다. 커뮤니티 사례·댓글은 `redactor.redact_sensitive_text()` 로
+  다음을 토큰으로 가린 뒤에만 저장합니다: `[PHONE] [EMAIL] [URL] [ACCOUNT] [ID_NUMBER] [ADDRESS] [SECRET] [PRIVATE_CONTACT]`
+  (카카오/텔레그램/라인/오픈채팅 등 사적 연락 채널 포함). **원문은 기본적으로 저장하지 않습니다**(`raw_body_stored=0`).
+- `moderation.check_submission()` 규칙 기반 모더레이션: 개인정보가 과도하면 **자동 공개 대신 검토 대기**(pending),
+  신상 공개·폭력·괴롭힘 유도는 **거부**(reject). 제출 전 사용자에게 경고 문구를 노출합니다.
+- 시나리오 생성기는 **원문을 그대로 복제하지 않으며**, 생성물은 검증기를 통과해야 저장됩니다
+  (숫자/링크/전화 흔적이 남으면 template 폴백).
+
+### 시나리오 뱅크 동작 (`app/scenarios/`)
+
+- `case_labeler.extract_case_labels()` — 규칙 기반으로 사례에서 카테고리/위험가족/압박유형/요구행동/안전대응/훈련모듈 라벨 추출.
+- `generator.generate_scenario_from_case()` — **기본값 template**(규칙/템플릿). `CASE_SCENARIO_GENERATOR_PROVIDER`
+  로 `local_claude`/`openai` 도 선택 가능하나, **모든 LLM 출력은 검증**되고 실패 시 template 로 폴백합니다.
+- `retriever.search_scenarios()` / `recommend_scenarios()` — **RAG-lite**: 무거운 의존성 없이 SQLite `LIKE`
+  검색 + 카테고리/위험가족 필터(가능하면 FTS5, 없으면 자동 LIKE 폴백). 추천은 사용자 **약점 차원**을 고려하며,
+  **승인(approved)된 시나리오만** 사용합니다.
+- 훈련 연결(`training_link.py`, Phase F) — 승인된 시나리오 seed 를 세션 훈련에 **비권위적 참고 힌트**로만 연결하고
+  서버 전용 텔레메트리에 남깁니다. **NPC role/tactics/페르소나는 절대 바꾸지 않으므로 기존 NPC 생성이 그대로 유지**되고,
+  seed 가 없거나 실패하면 기존 플로우로 폴백합니다.
+
+### 위험 점수 계산 방식 (`app/analytics/`)
+
+`risk_profile.build_user_risk_profile()` 가 4개 소스를 위험 차원별로 **투명하게** 합칩니다:
+① 최근 진단(차원별 정답률) ② 게임 숙련도(적응형 메모리) ③ 미션 성공/실패 ④ 부정행위 신호.
+각 차원은 근거(`evidence`) 문장을 함께 반환해 **"왜 이 점수인가"** 를 설명합니다. 근거가 없는 차원은
+`unknown` 으로 두고 총점에서 제외합니다. `confidence` 는 근거 총량으로 `demo_low/medium/high` 를 붙입니다.
+
+### 기관 대시보드 동작 (`app/routers/orgs.py`)
+
+- 데모용으로 현재 사용자가 **기관/코호트를 만들고 자신을 코호트에 추가**할 수 있습니다(운영급 관리자 인증 아님).
+- 대시보드는 **집계 지표만** 반환합니다: 인원 · 평균 사전/최근 점수 · 평균 개선도 · 약한/강한 차원 ·
+  미션 완료율 · 훈련 카테고리 · 추천 다음 커리큘럼. **개별 대화 원문·개인 식별정보는 노출하지 않습니다.**
+- 기능 게이트: `ORG_DEMO_DASHBOARD_ENABLED=false` 면 관련 API 가 404, `COMMUNITY_CASES_ENABLED=false` 면 커뮤니티 API 가 404.
+
+### 플랫폼 레이어 테이블 (멱등 생성, `app/migrations.py`)
+
+`assessment_question_bank` / `user_assessment_sessions` / `user_assessment_answers` ·
+`community_cases` / `community_case_reactions` / `community_case_comments` / `community_case_reports` ·
+`scenario_bank` / `scenario_labels` · `organizations` / `cohorts` / `cohort_members`.
+적응형 테이블과 동일하게 **UUID PK · ISO-UTC · JSON(TEXT)** 로 서버 이식형이며, 앱 시작 시 멱등 생성되어
+**기존 데이터를 보존**합니다.
+
+### 설정 플래그 (`.env`)
+
+```ini
+COMMUNITY_CASES_ENABLED=true          # 커뮤니티 사례 공유 on/off (off 면 관련 API 404)
+ORG_DEMO_DASHBOARD_ENABLED=true       # 기관/코호트 데모 대시보드 on/off
+CASE_SCENARIO_GENERATOR_PROVIDER=template   # template | local_claude | openai (기본 template)
+CASE_SCENARIO_REQUIRES_REVIEW=true    # 생성 시나리오를 승인 전 검토 대기로 둘지
+```
+
+---
+
 ## AI 모드 (mock / openai / local_claude)
 
 `.env` 의 `AI_MODE` 로 동작이 갈립니다. 어떤 모드든 **실패 시 자동으로 mock 폴백**합니다.
@@ -351,10 +447,31 @@ safedeal-town/
 │  │  ├─ providers.py         ListingProvider 인터페이스 + MarketListingSeed + 팩토리
 │  │  ├─ synthetic_provider.py / manual_import_provider.py / trend_cache.py
 │  │  └─ normalizer.py        개인정보 제거 + 정규화
+│  ├─ analytics/          위험 점수·프로필·리포트  ★플랫폼
+│  │  ├─ risk_scoring.py      위험 차원 15종 레지스트리(의미 계약) + 점수 헬퍼
+│  │  ├─ risk_profile.py      진단+게임+미션+부정행위 통합 프로필(투명 근거)
+│  │  └─ report_builder.py    개인 리포트 / 전·후 비교 / 근거 번들
+│  ├─ privacy/            제출물 비식별·모더레이션  ★플랫폼
+│  │  ├─ redactor.py          redact_sensitive_text (PHONE/URL/ACCOUNT/PRIVATE_CONTACT…)
+│  │  └─ moderation.py        규칙 기반 accept/pending/reject 게이트
+│  ├─ assessment/         사기 취약도 진단  ★플랫폼
+│  │  ├─ question_bank.py     10개 카테고리 문항 시드 + 선택/공개(정답 비노출)
+│  │  └─ scoring.py           답변 채점 + 세션 집계(차원별 점수/강약점)
+│  ├─ scenarios/          방어 시나리오 뱅크  ★플랫폼
+│  │  ├─ scenario_bank.py     저장/조회 + 데모 시나리오 시드(승인)
+│  │  ├─ case_labeler.py      규칙 기반 사례 라벨 추출
+│  │  ├─ retriever.py         RAG-lite 검색/추천(LIKE/FTS5, 승인만)
+│  │  ├─ generator.py         사례→픽션 시나리오(template 기본·검증·폴백)
+│  │  └─ training_link.py     승인 seed↔훈련 비권위적 연결(NPC 생성 불변)  ★Phase F
 │  ├─ routers/
 │  │  ├─ auth.py          회원가입/로그인/내 정보
 │  │  ├─ game.py          셋업·선호·판매글·아바타·위치·월드·스폰·전적·인벤토리·습관리포트·미션
-│  │  └─ chat.py          거래 대화 + 프로필카드 + 보상/체크리스트/거래후상황/미션 채점
+│  │  ├─ chat.py          거래 대화 + 프로필카드 + 보상/체크리스트/거래후상황/미션 채점
+│  │  ├─ assessment.py    진단 start/answer/complete/latest/history  ★플랫폼
+│  │  ├─ report.py        개인 리포트 / 전·후 / 근거  ★플랫폼
+│  │  ├─ community.py     피해 사례 제출/목록/상세/댓글/공감/신고 (비식별)  ★플랫폼
+│  │  ├─ scenarios.py     시나리오 검색/사례변환/추천  ★플랫폼
+│  │  └─ orgs.py          기관/코호트 데모 + 집계 대시보드  ★플랫폼
 │  └─ ai/
 │     ├─ personas.py      판매자 NPC + 구매자 NPC + 수법/행동 사전 (동적 생성의 앵커)
 │     ├─ persona_factory.py  동적 NPC/매물/프로필 카드 생성  ★신규
@@ -377,7 +494,8 @@ safedeal-town/
 └─ static/
    ├─ index.html / css/style.css
    └─ js/  api · auth · avatar · sprites · world_map · spawn_manager · game ·
-           listing_setup · setup · checklist · chat · inventory · missions · main
+           listing_setup · setup · checklist · chat · inventory · missions · main ·
+           platform · assessment · report · community · dashboard  ★플랫폼
 ```
 
 ---
@@ -406,6 +524,27 @@ safedeal-town/
 | POST | `/api/game/missions/skip` | 활성 미션 포기 — `{mission_id}` |
 | GET | `/api/game/missions/active` | 현재 활성 미션 (`?session_id=` 로 특정 세션 것만) |
 | POST | `/api/game/missions/clear-current` | 현재 모드의 활성 미션 포기(다른 미션 다시 받기용) |
+
+### 🛡️ 방어 훈련 플랫폼 API
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/api/assessment/start` | 진단 시작 — `{assessment_type: baseline\|post_training\|quick_check}` → 세션+첫 문항 |
+| POST | `/api/assessment/answer` | 답변 제출 → 정오답·해설·다음 문항 (정답지는 문항 페이로드에 노출 안 됨) |
+| POST | `/api/assessment/complete` | 진단 완료 → 총점 + 차원별 점수 + 강점/보완점 + 추천 훈련 |
+| GET | `/api/assessment/latest` · `/history` | 최근 완료 진단 / 진단 이력 |
+| GET | `/api/report/personal` | 개인 방어 리포트 (점수+차원+"왜 이 점수인가"+추천) |
+| GET | `/api/report/before-after` | 훈련 전/후 개선도 (baseline·post 둘 다 있으면) |
+| GET | `/api/report/evidence` | 점수 근거 번들 (집계만, 원문 대화 없음) |
+| POST | `/api/community/cases` | 사례 제출 (저장 전 자동 비식별 + 모더레이션) |
+| GET | `/api/community/cases` · `/{id}` | 사례 목록(승인만 기본) / 상세(비식별) |
+| POST | `/api/community/cases/{id}/comment·react·report` | 댓글(비식별)·공감·신고 |
+| GET | `/api/scenarios/search` | 시나리오 뱅크 검색 (RAG-lite: LIKE/FTS5, 승인만) |
+| POST | `/api/scenarios/from-case/{case_id}` | 사례 → 픽션화된 방어 시나리오 후보 변환 |
+| GET | `/api/scenarios/recommend` | 내 약점 차원 기반 승인 시나리오 추천 |
+| POST | `/api/orgs/demo/create` | 데모 기관+코호트 생성 (현재 계정 자동 추가) |
+| POST | `/api/orgs/demo/cohort/add-current-user` | 현재 계정을 코호트에 추가 |
+| GET | `/api/orgs/demo/dashboard` · `/list` | 코호트 **집계** 대시보드 / 내 기관·코호트 목록 |
 
 ---
 
@@ -463,6 +602,21 @@ safedeal-town/
 41. `AI_MODE=local_claude` 에서 CLI 실패 시에도 게임/적응형 기록이 **mock 폴백**으로 이어진다.
 42. 프론트는 **결과 화면 이전에 숨은 역할/수법/패턴 키를 받지 않는다**(개발자도구로도 안 보임).
 43. **♻️ 메모리 초기화** 또는 `POST /api/game/training-profile/reset` 후 적응형 데이터만 지워지고 **계정·거래 기록은 유지**된다.
+
+### 🛡️ 방어 훈련 플랫폼 점검
+44. HUD **🛡️ 방어훈련** → 허브의 5개 탭(진단/리포트/사례/시나리오/기관)이 열린다.
+45. *취약도 진단* → "사전 진단 시작" → 10문항을 끝까지 풀면 **총점 + 위험 차원별 점수 + 강점/보완점 + 추천 훈련**이 뜬다.
+46. 진단 중 **정답이 문항 페이로드에 노출되지 않는다**(개발자도구 네트워크 탭 확인) — 답을 내야 해설/정답이 온다.
+47. 거래/미션 몇 판 후 *내 리포트* 에 **방어 점수 + "왜 이 점수인가" 근거** + 위험 차원 막대 + 추천 다음 행동이 보인다.
+48. *사례 공유* → "사례 나누기" 에서 **가짜 전화/이메일/URL/계좌/카톡ID** 를 적어 제출하면, 목록/상세에 뜨는 본문이
+    `[PHONE]/[URL]/[ACCOUNT]/[PRIVATE_CONTACT]` 등으로 **가려져** 있다(원문 노출 없음). 개인정보가 많으면 **검토 대기**로 접수된다.
+49. 사례 상세 → "🎬 방어 시나리오로 변환" 시 생성 시나리오에 **원문·개인정보가 들어있지 않다**(위험 패턴만 픽션화).
+50. *시나리오 뱅크* 에서 키워드 검색 + "내 약점 추천"이 동작한다(승인 시나리오만).
+51. *취약도 진단* 을 `post_training` 으로 한 번 더 하면 *내 리포트* 하단에 **전/후 개선도**가 나온다.
+52. *기관 데모* 에서 데모 기관/코호트 생성 → 내 계정 추가 → **집계 대시보드**(인원·평균 점수·개선도·약한/강한 차원·완료율)가 보인다. 원문 대화·개인정보는 없다.
+53. 모바일 폭(≈390px)으로 줄여도 **가로 스크롤이 없고** 탭/카드/폼이 사용 가능하다.
+54. `COMMUNITY_CASES_ENABLED=false` / `ORG_DEMO_DASHBOARD_ENABLED=false` 로 두면 해당 API 가 404 이고, 프론트가 "비활성화" 안내를 보여준다.
+55. `python run.py` 재시작 후에도 기존 데이터가 보존되고, 새 플랫폼 테이블이 생성돼 있으며 콘솔에 JS 에러가 없다.
 
 빠른 자동 점검(선택):
 ```bash

@@ -256,6 +256,250 @@ def run_migrations(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # ============================================================
+    #  방어 훈련 플랫폼 레이어 (진단 / 리포트 / 커뮤니티 / 시나리오 뱅크 / 기관)
+    #  전부 멱등(CREATE TABLE IF NOT EXISTS) — 기존 데이터 보존.
+    #  스키마는 schema.sql 과 동일하게 유지할 것.
+    # ============================================================
+
+    # ---- Phase 1: 사기 취약도 진단 (baseline / post-training / quick-check) ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS assessment_question_bank (
+            id TEXT PRIMARY KEY,
+            category TEXT NOT NULL,
+            risk_family TEXT NOT NULL,
+            question_type TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            options_json TEXT NOT NULL DEFAULT '[]',
+            correct_answer_json TEXT NOT NULL DEFAULT '{}',
+            explanation TEXT,
+            difficulty TEXT NOT NULL DEFAULT 'medium',
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_assessment_sessions (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            assessment_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'in_progress',
+            started_at TEXT NOT NULL,
+            completed_at TEXT,
+            score INTEGER,
+            dimension_scores_json TEXT NOT NULL DEFAULT '{}',
+            summary_json TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_assessment_answers (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            question_id TEXT NOT NULL,
+            answer_json TEXT NOT NULL DEFAULT '{}',
+            is_correct INTEGER NOT NULL DEFAULT 0,
+            score_delta INTEGER NOT NULL DEFAULT 0,
+            detected_dimensions_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (session_id) REFERENCES user_assessment_sessions(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_assess_sessions_user "
+        "ON user_assessment_sessions(user_id, assessment_type, status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_assess_answers_session "
+        "ON user_assessment_answers(session_id)"
+    )
+
+    # ---- Phase 4: 커뮤니티 피해 사례 (비식별 후 저장) ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS community_cases (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER,
+            title TEXT NOT NULL,
+            category TEXT NOT NULL,
+            platform TEXT,
+            loss_amount_range TEXT,
+            incident_date_text TEXT,
+            redacted_body TEXT NOT NULL,
+            raw_body_stored INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'pending',
+            labels_json TEXT NOT NULL DEFAULT '[]',
+            extracted_risk_signals_json TEXT NOT NULL DEFAULT '[]',
+            scenario_candidate_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS community_case_reactions (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            reaction_type TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(case_id, user_id, reaction_type),
+            FOREIGN KEY (case_id) REFERENCES community_cases(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS community_case_comments (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            redacted_comment TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'visible',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (case_id) REFERENCES community_cases(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS community_case_reports (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            user_id INTEGER,
+            reason TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (case_id) REFERENCES community_cases(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_community_cases_status "
+        "ON community_cases(status, created_at)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_community_comments_case "
+        "ON community_case_comments(case_id, status)"
+    )
+
+    # ---- Phase 6: 방어 시나리오 뱅크 (비식별·픽션화된 훈련 시나리오 후보) ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS scenario_bank (
+            id TEXT PRIMARY KEY,
+            source_type TEXT NOT NULL,
+            source_case_id TEXT,
+            category TEXT NOT NULL,
+            risk_family TEXT NOT NULL,
+            title TEXT NOT NULL,
+            scenario_summary TEXT NOT NULL,
+            red_flags_json TEXT NOT NULL DEFAULT '[]',
+            safe_counters_json TEXT NOT NULL DEFAULT '[]',
+            difficulty TEXT NOT NULL DEFAULT 'medium',
+            status TEXT NOT NULL DEFAULT 'draft',
+            created_by TEXT NOT NULL DEFAULT 'system',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS scenario_labels (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            label_key TEXT NOT NULL,
+            label_value TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 0.5,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (scenario_id) REFERENCES scenario_bank(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_scenario_bank_lookup "
+        "ON scenario_bank(status, category, risk_family)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_scenario_labels_scenario "
+        "ON scenario_labels(scenario_id)"
+    )
+
+    # ---- Phase 10: 기관 / 코호트 데모 (집계 리포트용) ----
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS organizations (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            org_type TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cohorts (
+            id TEXT PRIMARY KEY,
+            organization_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cohort_members (
+            id TEXT PRIMARY KEY,
+            cohort_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            display_alias TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE(cohort_id, user_id),
+            FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cohort_members_cohort "
+        "ON cohort_members(cohort_id)"
+    )
+
+    # 진단 문항 시드 + 데모 시나리오 시드 (멱등 UPSERT — best-effort).
+    # 실패해도 기존 게임/데이터는 보존한다.
+    try:
+        from app.assessment import question_bank as _qbank
+
+        _qbank.seed_assessment_questions(conn)
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "assessment question seed skipped: %s", exc, exc_info=True
+        )
+    try:
+        from app.scenarios import scenario_bank as _sbank
+
+        _sbank.seed_demo_scenarios(conn)
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "scenario bank seed skipped: %s", exc, exc_info=True
+        )
+
     # ---- 적응형 시나리오 엔진 (방어 훈련 커리큘럼) ----
     # 멱등 생성 + 분류표 스냅샷 안전 UPSERT. SQL 은 adaptive_repository(=DB 계층)에 모아둔다.
     # 실패해도 기존 게임은 그대로 동작해야 하므로 전체를 best-effort 로 감싼다.

@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import initialize_database
-from app.routers import auth, chat, game
+from app.routers import assessment, auth, chat, community, game, orgs, report, scenarios
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -63,6 +63,12 @@ async def _no_stale_static(request: Request, call_next):
 app.include_router(auth.router)
 app.include_router(game.router)
 app.include_router(chat.router)
+# 방어 훈련 플랫폼 레이어 (진단 / 리포트 / 커뮤니티 / 시나리오 뱅크 / 기관 데모)
+app.include_router(assessment.router)
+app.include_router(report.router)
+app.include_router(community.router)
+app.include_router(scenarios.router)
+app.include_router(orgs.router)
 
 
 @app.get("/api/health")

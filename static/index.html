@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
 <!-- ?v= 는 캐시 무효화용. 정적 파일을 고칠 때마다 숫자를 올리면 브라우저가 새로 받는다. -->
-<link rel="stylesheet" href="/static/css/style.css?v=13" />
+<link rel="stylesheet" href="/static/css/style.css?v=14" />
 </head>
 <body>
 
@@ -156,6 +156,7 @@
     <div class="hud-right">
       <button class="hud-btn" id="btn-role" title="구매자/판매자 모드 전환">🔄 역할 전환</button>
       <button class="hud-btn" id="btn-bag" title="거래 가방">🎒 가방</button>
+      <button class="hud-btn hud-btn-accent" id="btn-platform" title="사기 방어 훈련·진단 플랫폼">🛡️ 방어훈련</button>
       <button class="hud-btn" id="btn-record">📒 전적실</button>
       <button class="hud-btn" id="btn-help">❔ 도움말</button>
       <button class="hud-btn" id="btn-logout">나가기</button>
@@ -478,6 +479,69 @@
   </div>
 </div>
 
+<!-- ================= 방어 훈련·진단 플랫폼 허브 ================= -->
+<div id="platform-overlay" class="overlay hidden">
+  <div class="platform-window">
+    <header class="record-header platform-header">
+      <h2>🛡️ 사기 방어 훈련·진단</h2>
+      <button class="chat-close" id="platform-close">✕</button>
+    </header>
+    <p class="platform-disclaimer" id="platform-disclaimer">
+      AI 기반 개인맞춤형 디지털 사기 방어 훈련·진단 데모입니다. 점수는 훈련용 지표이며 의료·법률·공식 진단이 아니에요.
+    </p>
+    <nav class="platform-tabs" id="platform-tabs">
+      <button class="platform-tab active" data-tab="assessment">🧭 취약도 진단</button>
+      <button class="platform-tab" data-tab="report">📊 내 리포트</button>
+      <button class="platform-tab" data-tab="community">🗣️ 사례 공유</button>
+      <button class="platform-tab" data-tab="scenarios">🎬 시나리오 뱅크</button>
+      <button class="platform-tab" data-tab="dashboard">🏫 기관 데모</button>
+    </nav>
+    <div class="platform-body">
+      <section class="platform-panel active" id="panel-assessment"></section>
+      <section class="platform-panel" id="panel-report"></section>
+      <section class="platform-panel" id="panel-community"></section>
+      <section class="platform-panel" id="panel-scenarios"></section>
+      <section class="platform-panel" id="panel-dashboard"></section>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 진단 진행 오버레이 (문항 러너) ================= -->
+<div id="assessment-overlay" class="overlay hidden">
+  <div class="assess-window">
+    <header class="assess-header">
+      <div class="assess-progress">
+        <span id="assess-progress-text">문항 0 / 0</span>
+        <div class="assess-bar"><div class="assess-fill" id="assess-fill"></div></div>
+      </div>
+      <button class="chat-close" id="assess-close" title="닫기">✕</button>
+    </header>
+    <div class="assess-body" id="assess-body"></div>
+  </div>
+</div>
+
+<!-- ================= 커뮤니티 사례 상세 모달 ================= -->
+<div id="case-detail-overlay" class="overlay hidden">
+  <div class="case-window">
+    <header class="record-header">
+      <h2 id="case-detail-title">피해 사례</h2>
+      <button class="chat-close" id="case-detail-close">✕</button>
+    </header>
+    <div class="case-detail-body" id="case-detail-body"></div>
+  </div>
+</div>
+
+<!-- ================= 커뮤니티 사례 작성 모달 ================= -->
+<div id="case-submit-overlay" class="overlay hidden">
+  <div class="case-window">
+    <header class="record-header">
+      <h2>✍️ 피해 사례 나누기</h2>
+      <button class="chat-close" id="case-submit-close">✕</button>
+    </header>
+    <div class="case-submit-body" id="case-submit-body"></div>
+  </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script src="/static/js/api.js?v=13"></script>
@@ -493,6 +557,11 @@
 <script src="/static/js/chat.js?v=13"></script>
 <script src="/static/js/inventory.js?v=13"></script>
 <script src="/static/js/missions.js?v=13"></script>
+<script src="/static/js/assessment.js?v=14"></script>
+<script src="/static/js/report.js?v=14"></script>
+<script src="/static/js/community.js?v=14"></script>
+<script src="/static/js/dashboard.js?v=14"></script>
+<script src="/static/js/platform.js?v=14"></script>
 <script src="/static/js/main.js?v=13"></script>
 </body>
 </html>

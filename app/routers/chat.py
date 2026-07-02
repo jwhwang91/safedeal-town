@@ -425,6 +425,15 @@ def start_chat(
     )
     # 선택된 패턴/변주를 서버 전용 컨텍스트로 저장 (프론트로는 안 나감)
     _store_adaptive_context(conn, session_id, user["id"], mode, adaptive_ctx)
+    # Phase F: 승인된 시나리오 뱅크 seed 를 이번 훈련에 '참고'로 연결한다 (서버 전용·비권위적).
+    #   NPC role/tactics/페르소나는 절대 바꾸지 않으므로 기존 생성 흐름이 그대로 유지된다.
+    #   승인된 seed 가 없거나 실패하면 아무 일도 하지 않는다(기존 플로우 폴백).
+    try:
+        from app.scenarios import training_link
+        mission_key = attached_mission.get("mission_key") if attached_mission else None
+        training_link.link_seed_to_session(conn, user["id"], session_id, mode, mission_key)
+    except Exception:
+        pass
     # 말 건 스폰은 활성 풀에서 빼서 거래 도중 사라지지 않게 한다
     spawn_mgr.engage(conn, user["id"], body.spawn_instance_id)
 

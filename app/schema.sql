@@ -256,6 +256,14 @@ CREATE TABLE IF NOT EXISTS market_trends (
     updated_at TEXT NOT NULL
 );
 
+-- ----- 방어 훈련 플랫폼 레이어 (진단/커뮤니티/시나리오 뱅크/기관 데모) -----
+-- 적응형 엔진 테이블과 마찬가지로, 이 레이어의 권위 있는 DDL 은 app/migrations.py 에
+-- 멱등(CREATE TABLE IF NOT EXISTS)으로 모아둔다 (앱 시작 시 항상 실행 → 기존 DB 도 자동 보강).
+--   assessment_question_bank / user_assessment_sessions / user_assessment_answers
+--   community_cases / community_case_reactions / community_case_comments / community_case_reports
+--   scenario_bank / scenario_labels
+--   organizations / cohorts / cohort_members
+
 CREATE INDEX IF NOT EXISTS idx_sessions_user    ON trade_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_results_user     ON trade_results(user_id);

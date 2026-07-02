@@ -232,10 +232,136 @@
     },
   };
 
+  /* ---------- 사기 취약도 진단 (assessment) ---------- */
+  const assessment = {
+    start(assessmentType) {
+      return request("/api/assessment/start", {
+        method: "POST",
+        body: { assessment_type: assessmentType || "baseline" },
+      });
+    },
+    answer(sessionId, questionId, answer) {
+      return request("/api/assessment/answer", {
+        method: "POST",
+        body: { session_id: sessionId, question_id: questionId, answer },
+      });
+    },
+    complete(sessionId) {
+      return request("/api/assessment/complete", {
+        method: "POST",
+        body: { session_id: sessionId },
+      });
+    },
+    latest(assessmentType) {
+      const qs = assessmentType ? "?assessment_type=" + encodeURIComponent(assessmentType) : "";
+      return request("/api/assessment/latest" + qs);
+    },
+    history() {
+      return request("/api/assessment/history");
+    },
+  };
+
+  /* ---------- 개인 방어 리포트 (report) ---------- */
+  const report = {
+    personal() {
+      return request("/api/report/personal");
+    },
+    beforeAfter() {
+      return request("/api/report/before-after");
+    },
+    evidence() {
+      return request("/api/report/evidence");
+    },
+  };
+
+  /* ---------- 커뮤니티 피해 사례 (community) ---------- */
+  const community = {
+    listCases(category, status) {
+      const p = new URLSearchParams();
+      if (category) p.set("category", category);
+      if (status) p.set("status", status);
+      const qs = p.toString();
+      return request("/api/community/cases" + (qs ? "?" + qs : ""));
+    },
+    getCase(caseId) {
+      return request("/api/community/cases/" + encodeURIComponent(caseId));
+    },
+    submitCase(payload) {
+      return request("/api/community/cases", { method: "POST", body: payload });
+    },
+    comment(caseId, comment) {
+      return request("/api/community/cases/" + encodeURIComponent(caseId) + "/comment", {
+        method: "POST",
+        body: { comment },
+      });
+    },
+    react(caseId, reactionType) {
+      return request("/api/community/cases/" + encodeURIComponent(caseId) + "/react", {
+        method: "POST",
+        body: { reaction_type: reactionType || "me_too" },
+      });
+    },
+    report(caseId, reason) {
+      return request("/api/community/cases/" + encodeURIComponent(caseId) + "/report", {
+        method: "POST",
+        body: { reason },
+      });
+    },
+  };
+
+  /* ---------- 방어 시나리오 뱅크 (scenarios) ---------- */
+  const scenarios = {
+    search(q, category, riskFamily) {
+      const p = new URLSearchParams();
+      if (q) p.set("q", q);
+      if (category) p.set("category", category);
+      if (riskFamily) p.set("risk_family", riskFamily);
+      const qs = p.toString();
+      return request("/api/scenarios/search" + (qs ? "?" + qs : ""));
+    },
+    fromCase(caseId) {
+      return request("/api/scenarios/from-case/" + encodeURIComponent(caseId), {
+        method: "POST",
+      });
+    },
+    recommend(missionKey) {
+      const qs = missionKey ? "?mission_key=" + encodeURIComponent(missionKey) : "";
+      return request("/api/scenarios/recommend" + qs);
+    },
+  };
+
+  /* ---------- 기관 / 코호트 데모 대시보드 (orgs) ---------- */
+  const orgs = {
+    createDemo(name, orgType) {
+      return request("/api/orgs/demo/create", {
+        method: "POST",
+        body: { name, org_type: orgType || "school" },
+      });
+    },
+    addCurrentUser(cohortId) {
+      return request("/api/orgs/demo/cohort/add-current-user", {
+        method: "POST",
+        body: { cohort_id: cohortId || null },
+      });
+    },
+    dashboard(cohortId) {
+      const qs = cohortId ? "?cohort_id=" + encodeURIComponent(cohortId) : "";
+      return request("/api/orgs/demo/dashboard" + qs);
+    },
+    list() {
+      return request("/api/orgs/demo/list");
+    },
+  };
+
   global.API = {
     auth,
     game,
     chat,
+    assessment,
+    report,
+    community,
+    scenarios,
+    orgs,
     getToken,
     clearToken,
     hasToken: () => !!getToken(),

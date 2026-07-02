@@ -98,6 +98,19 @@ class Settings:
     seller_max_pending_inquiries: int
     seller_max_approaching_buyers: int
 
+    # 방어 훈련 플랫폼 레이어 (진단/리포트/커뮤니티/시나리오/기관 대시보드)
+    #   - community_cases_enabled     : 피해 사례 공유(커뮤니티 MVP) 기능 on/off
+    #   - org_demo_dashboard_enabled  : 기관/코호트 데모 대시보드 on/off
+    #   - case_scenario_generator_provider : 사례→방어 시나리오 변환 제공자
+    #       template     : 규칙/템플릿 기반 (기본값, 항상 안전/오프라인)
+    #       local_claude : 로컬 CLI 로 초안 생성 (검증 실패 시 template 폴백)
+    #       openai       : OpenAI 호환 API 로 초안 생성 (검증 실패 시 template 폴백)
+    #   - case_scenario_requires_review : 생성된 시나리오를 approved 전에 사람이 검토해야 하는가
+    community_cases_enabled: bool
+    org_demo_dashboard_enabled: bool
+    case_scenario_generator_provider: str
+    case_scenario_requires_review: bool
+
     # 서버
     host: str
     port: int
@@ -159,6 +172,17 @@ class Settings:
         게임은 절대 멈추지 않는다. (적응형 persona_evolution_provider 와는 독립적인 설정.)
         """
         p = (self.dynamic_persona_provider or "template").strip().lower()
+        return p if p in ("template", "local_claude", "openai") else "template"
+
+    @property
+    def case_scenario_provider_effective(self) -> str:
+        """사례→시나리오 변환 제공자를 정규화한다.
+
+        허용값(template/local_claude/openai) 외에는 안전 기본값 template 로 떨어뜨린다.
+        local_claude/openai 라도 실제 생성/검증에 실패하면 호출부가 template 로 폴백하므로
+        변환 파이프라인은 절대 멈추지 않는다.
+        """
+        p = (self.case_scenario_generator_provider or "template").strip().lower()
         return p if p in ("template", "local_claude", "openai") else "template"
 
     @property
@@ -256,6 +280,10 @@ def get_settings() -> Settings:
         ),
         seller_max_pending_inquiries=_get_int("SELLER_MAX_PENDING_INQUIRIES", 3),
         seller_max_approaching_buyers=_get_int("SELLER_MAX_APPROACHING_BUYERS", 2),
+        community_cases_enabled=_get_bool("COMMUNITY_CASES_ENABLED", True),
+        org_demo_dashboard_enabled=_get_bool("ORG_DEMO_DASHBOARD_ENABLED", True),
+        case_scenario_generator_provider=_get("CASE_SCENARIO_GENERATOR_PROVIDER", "template"),
+        case_scenario_requires_review=_get_bool("CASE_SCENARIO_REQUIRES_REVIEW", True),
         host=_get("HOST", "0.0.0.0"),
         port=_get_int("PORT", 8000),
         jwt_secret=_get("JWT_SECRET", "dev-insecure-secret-change-me"),

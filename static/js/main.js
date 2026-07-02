@@ -155,6 +155,9 @@
   document.getElementById("btn-record").addEventListener("click", () => {
     SafeDealChat.openRecord();
   });
+  document.getElementById("btn-platform").addEventListener("click", () => {
+    if (global.SafeDealPlatform) SafeDealPlatform.open();
+  });
   document.getElementById("btn-help").addEventListener("click", () => {
     helpOverlay.classList.remove("hidden");
   });
